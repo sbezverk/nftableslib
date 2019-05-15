@@ -1,16 +1,23 @@
 package nftableslib
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/google/nftables"
 )
 
-// NFTables defines an interface
-type NFTables interface {
-	AddNFTable(name string, familyType nftables.TableFamily)
-	DeleteNFTable(name string, familyType nftables.TableFamily)
-	NFTableExist(name string, familyType nftables.TableFamily) bool
+// TablesInterface defines a top level interface
+type TablesInterface interface {
+	Tables() TableFuncs
+}
+
+// TableFuncs defines second level interface operating with nf tables
+type TableFuncs interface {
+	Table(name string, familyType nftables.TableFamily) (ChainsInterface, error)
+	Create(name string, familyType nftables.TableFamily)
+	Delete(name string, familyType nftables.TableFamily)
+	Exist(name string, familyType nftables.TableFamily) bool
 }
 
 type nfTables struct {
@@ -20,12 +27,14 @@ type nfTables struct {
 	tables map[nftables.TableFamily]map[string]*nfTable
 }
 
+// nfTable defines a single type/name nf table with its linked chains
 type nfTable struct {
 	table *nftables.Table
+	ChainsInterface
 }
 
 // InitConn initializes netlink connection of the nftables family
-func InitConn(netns ...int) NFTables {
+func InitConn(netns ...int) TablesInterface {
 	// if netns is not specified, global namespace is used
 	ts := nfTables{
 		tables: map[nftables.TableFamily]map[string]*nfTable{},
@@ -39,8 +48,25 @@ func InitConn(netns ...int) NFTables {
 	return &ts
 }
 
-// AddNFTable appends a table into NF tables list
-func (nft *nfTables) AddNFTable(name string, familyType nftables.TableFamily) {
+// Tables returns methods available for managing nf tables
+func (nft *nfTables) Tables() TableFuncs {
+	return nft
+}
+
+// Table returns Chains Interface for a specific table
+func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (ChainsInterface, error) {
+	nft.Lock()
+	defer nft.Unlock()
+	// Check if nf table with the same family type and name  already exists
+	if t, ok := nft.tables[familyType][name]; ok {
+		return t.ChainsInterface, nil
+
+	}
+	return nil, fmt.Errorf("table: %s of type: %+v not found", name, familyType)
+}
+
+// Create appends a table into NF tables list
+func (nft *nfTables) Create(name string, familyType nftables.TableFamily) {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
@@ -55,12 +81,14 @@ func (nft *nfTables) AddNFTable(name string, familyType nftables.TableFamily) {
 	})
 	nft.tables[familyType] = make(map[string]*nfTable)
 	nft.tables[familyType][name] = &nfTable{
-		table: t,
+		table:           t,
+		ChainsInterface: newChains(name, familyType),
 	}
+
 }
 
-// AddNFTable appends a table into NF tables list
-func (nft *nfTables) DeleteNFTable(name string, familyType nftables.TableFamily) {
+// Delete a specified table from NF tables list
+func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
@@ -75,7 +103,8 @@ func (nft *nfTables) DeleteNFTable(name string, familyType nftables.TableFamily)
 	}
 }
 
-func (nft *nfTables) NFTableExist(name string, familyType nftables.TableFamily) bool {
+// Exist checks is the table already defined
+func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 	if _, ok := nft.tables[familyType][name]; ok {
 		return true
 	}
