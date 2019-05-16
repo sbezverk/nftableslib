@@ -82,7 +82,7 @@ func (nft *nfTables) Create(name string, familyType nftables.TableFamily) {
 	nft.tables[familyType] = make(map[string]*nfTable)
 	nft.tables[familyType][name] = &nfTable{
 		table:           t,
-		ChainsInterface: newChains(name, familyType),
+		ChainsInterface: newChains(nft.Conn, t),
 	}
 
 }

@@ -13,27 +13,51 @@ type ChainsInterface interface {
 
 // ChainFuncs defines funcations to operate with chains
 type ChainFuncs interface {
-	Add()
+	Chain(name string) RulesInterface
+	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType)
 }
 
 type nfChains struct {
-	tableName string
-	tableType nftables.TableFamily
+	conn  *nftables.Conn
+	table *nftables.Table
 	sync.Mutex
-	chains map[string]*nftables.Chain
+	chains map[string]*nfChain
+}
+
+type nfChain struct {
+	chainType nftables.ChainType
+	chain     *nftables.Chain
+	RulesInterface
+}
+
+func (nfc *nfChains) Chain(name string) RulesInterface {
+	return nfc.chains[name].RulesInterface
 }
 
 func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) Add() {
+func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType) {
+	if _, ok := nfc.chains[name]; ok {
+		delete(nfc.chains, name)
+	}
+	nfc.chains[name] = &nfChain{
+		chain: nfc.conn.AddChain(&nftables.Chain{
+			Name:     name,
+			Hooknum:  hookNum,
+			Priority: priority,
+			Table:    nfc.table,
+			Type:     chainType,
+		}),
+		chainType: chainType,
+	}
 }
 
-func newChains(name string, familyType nftables.TableFamily) ChainsInterface {
+func newChains(conn *nftables.Conn, t *nftables.Table) ChainsInterface {
 	return &nfChains{
-		tableName: name,
-		tableType: familyType,
-		chains:    make(map[string]*nftables.Chain),
+		conn:   conn,
+		table:  t,
+		chains: make(map[string]*nfChain),
 	}
 }
