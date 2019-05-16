@@ -42,15 +42,17 @@ func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nf
 	if _, ok := nfc.chains[name]; ok {
 		delete(nfc.chains, name)
 	}
+	c := nfc.conn.AddChain(&nftables.Chain{
+		Name:     name,
+		Hooknum:  hookNum,
+		Priority: priority,
+		Table:    nfc.table,
+		Type:     chainType,
+	})
 	nfc.chains[name] = &nfChain{
-		chain: nfc.conn.AddChain(&nftables.Chain{
-			Name:     name,
-			Hooknum:  hookNum,
-			Priority: priority,
-			Table:    nfc.table,
-			Type:     chainType,
-		}),
-		chainType: chainType,
+		chain:          c,
+		chainType:      chainType,
+		RulesInterface: newRules(nfc.conn, nfc.table, c),
 	}
 	return nil
 }

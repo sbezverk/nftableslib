@@ -61,8 +61,10 @@ func (nft *nfTables) Table(name string, familyType nftables.TableFamily) ChainsI
 		return t.ChainsInterface
 
 	}
-	// If a table does not exist, will be creating it
-	return nil
+	// If a table does not exist, creating it and return Chains Interface to newly created table
+	nft.Create(name, familyType)
+	t, _ := nft.tables[familyType][name]
+	return t.ChainsInterface
 }
 
 // Create appends a table into NF tables list

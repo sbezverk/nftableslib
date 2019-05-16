@@ -30,16 +30,3 @@ func TestDeleteNFTable(t *testing.T) {
 		t.Fatalf("expected table %s of type %v not exist, but it does", "filter", nftables.TableFamilyIPv4)
 	}
 }
-
-func TestChains(t *testing.T) {
-	conn := InitConn()
-	if conn == nil {
-		t.Fatal("initialization of netlink connection failed")
-	}
-	conn.Tables().Create("test", nftables.TableFamilyIPv4)
-	conn.Tables().Table("test", nftables.TableFamilyIPv4).Chains().Create(
-		"chain-1",
-		nftables.ChainHookInput,
-		nftables.ChainPriorityFilter,
-		nftables.ChainTypeFilter)
-}
