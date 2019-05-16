@@ -33,10 +33,13 @@ func TestDeleteNFTable(t *testing.T) {
 
 func TestChains(t *testing.T) {
 	conn := InitConn()
-	conn.Tables().Create("test", nftables.TableFamilyIPv4)
-	chains, err := conn.Tables().Table("test", nftables.TableFamilyIPv4)
-	if err != nil {
-		t.Fatalf("failed to get Chains with error: %+v", err)
+	if conn == nil {
+		t.Fatal("initialization of netlink connection failed")
 	}
-	chains.Chains().Add()
+	conn.Tables().Create("test", nftables.TableFamilyIPv4)
+	conn.Tables().Table("test", nftables.TableFamilyIPv4).Chains().Create(
+		"chain-1",
+		nftables.ChainHookInput,
+		nftables.ChainPriorityFilter,
+		nftables.ChainTypeFilter)
 }

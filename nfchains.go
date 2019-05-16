@@ -14,7 +14,7 @@ type ChainsInterface interface {
 // ChainFuncs defines funcations to operate with chains
 type ChainFuncs interface {
 	Chain(name string) RulesInterface
-	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType)
+	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType) error
 }
 
 type nfChains struct {
@@ -38,7 +38,7 @@ func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType) {
+func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType) error {
 	if _, ok := nfc.chains[name]; ok {
 		delete(nfc.chains, name)
 	}
@@ -52,6 +52,7 @@ func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nf
 		}),
 		chainType: chainType,
 	}
+	return nil
 }
 
 func newChains(conn *nftables.Conn, t *nftables.Table) ChainsInterface {
