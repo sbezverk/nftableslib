@@ -1,6 +1,7 @@
 package nftableslib
 
 import (
+	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 )
 
@@ -60,4 +61,75 @@ func outputIntfByName(intf string) []expr.Any {
 			Data:     ifname(intf),
 		},
 	}
+}
+
+// proto example: unix.IPPROTO_TCP
+func redirect(proto uint32, rp uint32, ports ...uint32) []expr.Any {
+	/*
+	  [ meta load l4proto => reg 1 ]
+	  [ cmp eq reg 1 0x00000006 ]
+	  [ payload load 2b @ transport header + 2 => reg 1 ]
+	  [ cmp gte reg 1 0x00000100 ]
+	  [ cmp lte reg 1 0x0000ffff ]
+	  [ immediate reg 1 0x0000993a ]
+	  [ redir proto_min reg 1 ]
+	*/
+
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(proto),
+	})
+
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       2, // Offset for a transport protocol header
+		Len:          2, // 2 bytes for port
+	})
+	var fp, lp uint32
+
+	switch len(ports) {
+	case 0: // No ports specified redirecting whole range 1-65535
+		fp, lp = 1, 65535
+	case 1:
+		fp = ports[0]
+	case 2:
+		fp, lp = ports[0], ports[1]
+	default:
+		fp, lp = ports[0], ports[1]
+	}
+	if lp == 0 {
+		// Single port was passed, then expression is for a single port match
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpEq,
+			Register: 1,
+			Data:     binaryutil.BigEndian.PutUint32(fp),
+		})
+
+	} else {
+		// range of ports was specified, then expression for range is added
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpGte,
+			Register: 1,
+			Data:     binaryutil.BigEndian.PutUint32(fp),
+		})
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpLte,
+			Register: 1,
+			Data:     binaryutil.BigEndian.PutUint32(lp),
+		})
+	}
+	re = append(re, &expr.Immediate{
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(rp),
+	})
+
+	re = append(re, &expr.Redir{
+		RegisterProtoMin: 1,
+	})
+
+	return re
 }
