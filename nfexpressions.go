@@ -1,6 +1,8 @@
 package nftableslib
 
 import (
+	"golang.org/x/sys/unix"
+
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 )
@@ -129,6 +131,42 @@ func redirect(proto uint32, rp uint32, ports ...uint32) []expr.Any {
 
 	re = append(re, &expr.Redir{
 		RegisterProtoMin: 1,
+	})
+
+	return re
+}
+
+func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
+	/*
+	  [ meta load l4proto => reg 1 ]
+	  [ cmp eq reg 1 0x00000006 ]
+	  [ payload load 2b @ transport header + 2 => reg 1 ]
+	  [ cmp eq reg 1 0x000011c6 ]
+	  [ immediate reg 0 jump -> istio_redirect ]
+	*/
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(proto),
+	})
+
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       2, // Offset for a transport protocol header
+		Len:          2, // 2 bytes for port
+	})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(port),
+	})
+
+	re = append(re, &expr.Verdict{
+		Kind:  expr.VerdictKind(unix.NFT_JUMP),
+		Chain: chain,
 	})
 
 	return re
