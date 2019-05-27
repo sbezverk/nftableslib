@@ -7,6 +7,12 @@ import (
 	"github.com/google/nftables/expr"
 )
 
+type packet struct {
+	l4Proto uint32
+	srcPort uint32
+	dstPort uint32
+}
+
 /*
 	List of available keys:
 
@@ -169,5 +175,62 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 		Chain: chain,
 	})
 
+	return re
+}
+
+func processPacket(data packet) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(data.l4Proto),
+	})
+	// If source port is specified, then add condition for source port
+	if data.srcPort != 0 {
+		re = append(re, getExprForSrcPort(data.srcPort)...)
+	}
+	// If destination port is specified, then add condition for destination port
+	if data.srcPort != 0 {
+		re = append(re, getExprForDstPort(data.dstPort)...)
+	}
+	re = append(re, &expr.Verdict{
+		Kind: expr.VerdictKind(unix.NFT_RETURN),
+	})
+
+	return re
+}
+
+func getExprForSrcPort(port uint32) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       2, // Offset for a transport protocol header
+		Len:          2, // 2 bytes for port
+	})
+
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(port),
+	})
+	return re
+}
+
+func getExprForDstPort(port uint32) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       2, // Offset for a transport protocol header
+		Len:          2, // 2 bytes for port
+	})
+
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(port),
+	})
 	return re
 }

@@ -19,7 +19,7 @@ type ChainFuncs interface {
 }
 
 type nfChains struct {
-	conn  *nftables.Conn
+	conn  NetNS
 	table *nftables.Table
 	sync.Mutex
 	chains map[string]*nfChain
@@ -61,7 +61,7 @@ func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nf
 	}
 }
 
-func newChains(conn *nftables.Conn, t *nftables.Table) ChainsInterface {
+func newChains(conn NetNS, t *nftables.Table) ChainsInterface {
 	return &nfChains{
 		conn:   conn,
 		table:  t,

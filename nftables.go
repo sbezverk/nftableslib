@@ -6,6 +6,15 @@ import (
 	"github.com/google/nftables"
 )
 
+// NetNS defines interface needed to nf tables
+type NetNS interface {
+	Flush() error
+	FlushRuleset()
+	DelTable(*nftables.Table)
+	AddTable(*nftables.Table) *nftables.Table
+	AddChain(*nftables.Chain) *nftables.Chain
+}
+
 // TablesInterface defines a top level interface
 type TablesInterface interface {
 	Tables() TableFuncs
@@ -20,7 +29,7 @@ type TableFuncs interface {
 }
 
 type nfTables struct {
-	Conn *nftables.Conn
+	Conn NetNS
 	sync.Mutex
 	// Two dimensional map, 1st key is table family, 2nd key is table name
 	tables map[nftables.TableFamily]map[string]*nfTable
@@ -33,16 +42,21 @@ type nfTable struct {
 }
 
 // InitConn initializes netlink connection of the nftables family
-func InitConn(netns ...int) TablesInterface {
+func InitConn(netns ...int) *nftables.Conn {
+	// if netns is not specified, global namespace is used
+	if len(netns) != 0 {
+		return &nftables.Conn{NetNS: netns[0]}
+	}
+	return &nftables.Conn{}
+}
+
+// InitNFTables initializes netlink connection of the nftables family
+func InitNFTables(conn NetNS) TablesInterface {
 	// if netns is not specified, global namespace is used
 	ts := nfTables{
 		tables: map[nftables.TableFamily]map[string]*nfTable{},
 	}
-	if len(netns) != 0 {
-		ts.Conn = &nftables.Conn{NetNS: netns[0]}
-	} else {
-		ts.Conn = &nftables.Conn{}
-	}
+	ts.Conn = conn
 
 	return &ts
 }

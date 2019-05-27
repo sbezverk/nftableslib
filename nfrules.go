@@ -17,7 +17,7 @@ type RuleFuncs interface {
 }
 
 type nfRules struct {
-	conn  *nftables.Conn
+	conn  NetNS
 	table *nftables.Table
 	chain *nftables.Chain
 	sync.Mutex
@@ -36,7 +36,7 @@ func (nfr *nfRules) Create() {
 
 }
 
-func newRules(conn *nftables.Conn, t *nftables.Table, c *nftables.Chain) RulesInterface {
+func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 	return &nfRules{
 		conn:  conn,
 		table: t,

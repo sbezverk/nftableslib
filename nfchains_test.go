@@ -11,8 +11,9 @@ func TestChains(t *testing.T) {
 	if conn == nil {
 		t.Fatal("initialization of netlink connection failed")
 	}
-	conn.Tables().Create("test", nftables.TableFamilyIPv4)
-	conn.Tables().Table("test", nftables.TableFamilyIPv4).Chains().Create(
+	nft := InitNFTables(conn)
+	nft.Tables().Create("test", nftables.TableFamilyIPv4)
+	nft.Tables().Table("test", nftables.TableFamilyIPv4).Chains().Create(
 		"chain-1",
 		nftables.ChainHookInput,
 		nftables.ChainPriorityFilter,
