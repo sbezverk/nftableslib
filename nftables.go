@@ -1,6 +1,7 @@
 package nftableslib
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/google/nftables"
@@ -26,6 +27,7 @@ type TableFuncs interface {
 	Create(name string, familyType nftables.TableFamily)
 	Delete(name string, familyType nftables.TableFamily)
 	Exist(name string, familyType nftables.TableFamily) bool
+	Dump() ([]byte, error)
 }
 
 type nfTables struct {
@@ -125,4 +127,14 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 		return true
 	}
 	return false
+}
+
+// Dump outputs json representation of all defined tables/chains/rules
+func (nft *nfTables) Dump() ([]byte, error) {
+	b, err := json.Marshal(&nft.tables)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
