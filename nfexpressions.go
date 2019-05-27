@@ -1,15 +1,22 @@
 package nftableslib
 
 import (
+	"net"
+
 	"golang.org/x/sys/unix"
 
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 )
 
+// packet is used to pass L4 protocol, source/destination address and
+// source/destination ports to build matching expression, only L4 protocol
+// is required.
 type packet struct {
 	l4Proto uint32
+	srcAddr net.IP
 	srcPort uint32
+	dstAddr net.IP
 	dstPort uint32
 }
 
@@ -178,21 +185,37 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 	return re
 }
 
-func processPacket(data packet) []expr.Any {
+// processPacket matches a packet based on the passed parameter and returns
+// to the calling chain
+func processIPv4Packet(data packet) []expr.Any {
 	re := []expr.Any{}
-	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint32(data.l4Proto),
-	})
+	// Match for L4 protocol if specified
+	if data.l4Proto != 0 {
+		re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpEq,
+			Register: 1,
+			Data:     binaryutil.BigEndian.PutUint32(data.l4Proto),
+		})
+	} else {
+		// If L4 protocol is not specififed returning empty matching expression
+		return re
+	}
+	// if source IP address specified, get the expression to match
+	if data.srcAddr != nil {
+		re = append(re, getExprForIPv4Src(data.srcAddr)...)
+	}
+	// if destination IP address specified, get the expression to match
+	if data.dstAddr != nil {
+		re = append(re, getExprForIPv4Dst(data.dstAddr)...)
+	}
 	// If source port is specified, then add condition for source port
 	if data.srcPort != 0 {
-		re = append(re, getExprForSrcPort(data.srcPort)...)
+		re = append(re, getExprForIPv4SrcPort(data.srcPort)...)
 	}
 	// If destination port is specified, then add condition for destination port
 	if data.srcPort != 0 {
-		re = append(re, getExprForDstPort(data.dstPort)...)
+		re = append(re, getExprForIPv4DstPort(data.dstPort)...)
 	}
 	re = append(re, &expr.Verdict{
 		Kind: expr.VerdictKind(unix.NFT_RETURN),
@@ -201,24 +224,46 @@ func processPacket(data packet) []expr.Any {
 	return re
 }
 
-func getExprForSrcPort(port uint32) []expr.Any {
+// getExptForIPv4Src
+func getExprForIPv4Src(addr net.IP) []expr.Any {
 	re := []expr.Any{}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
-		Base:         expr.PayloadBaseTransportHeader,
-		Offset:       2, // Offset for a transport protocol header
-		Len:          2, // 2 bytes for port
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       16, // Offset of source ipv4 address in network header
+		Len:          4,  // length bytes for ipv4 address
 	})
+	re = append(re,
+		&expr.Immediate{
+			Register: 1,
+			Data:     addr.To4(),
+		},
+	)
 
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint32(port),
-	})
 	return re
 }
 
-func getExprForDstPort(port uint32) []expr.Any {
+// getExptForIPv4Dst
+func getExprForIPv4Dst(addr net.IP) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       20, // Offset of destination ipv4 address in network header
+		Len:          4,  // length bytes for ipv4 address
+	})
+	re = append(re,
+		&expr.Immediate{
+			Register: 1,
+			Data:     addr.To4(),
+		},
+	)
+
+	return re
+}
+
+// getExprForIPv4SrcPort returns expression to match by ipv4 TCP source port
+func getExprForIPv4SrcPort(port uint32) []expr.Any {
 	re := []expr.Any{}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
@@ -226,11 +271,29 @@ func getExprForDstPort(port uint32) []expr.Any {
 		Offset:       2, // Offset for a transport protocol header
 		Len:          2, // 2 bytes for port
 	})
-
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
 		Data:     binaryutil.BigEndian.PutUint32(port),
 	})
+
+	return re
+}
+
+// getExprForIPv4DstPort returns expression to match by ipv4 TCP destination port
+func getExprForIPv4DstPort(port uint32) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       4, // Offset for a transport protocol header
+		Len:          2, // 2 bytes for port
+	})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(port),
+	})
+
 	return re
 }
