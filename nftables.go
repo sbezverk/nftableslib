@@ -14,6 +14,7 @@ type NetNS interface {
 	DelTable(*nftables.Table)
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
+	AddRule(*nftables.Rule) *nftables.Rule
 }
 
 // TablesInterface defines a top level interface
@@ -131,10 +132,24 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 
 // Dump outputs json representation of all defined tables/chains/rules
 func (nft *nfTables) Dump() ([]byte, error) {
-	b, err := json.Marshal(&nft.tables)
-	if err != nil {
-		return nil, err
+	nft.Lock()
+	defer nft.Unlock()
+	var data []byte
+
+	for _, f := range nft.tables {
+		for _, t := range f {
+			if b, err := json.Marshal(&t.table); err != nil {
+				return nil, err
+			} else {
+				data = append(data, b...)
+			}
+			if b, err := t.Chains().Dump(); err != nil {
+				return nil, err
+			} else {
+				data = append(data, b...)
+			}
+		}
 	}
 
-	return b, nil
+	return data, nil
 }

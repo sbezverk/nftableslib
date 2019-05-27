@@ -12,6 +12,7 @@ type Interface interface {
 	DelTable(*nftables.Table)
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
+	AddRule(*nftables.Rule) *nftables.Rule
 }
 
 // Mock defines type and methods to simulate operations with tables
@@ -31,6 +32,11 @@ func (m *Mock) Flush() error {
 // FlushRuleset not use
 func (m *Mock) FlushRuleset() {
 
+}
+
+// AddRule not use
+func (m *Mock) AddRule(r *nftables.Rule) *nftables.Rule {
+	return r
 }
 
 // DelTable not used

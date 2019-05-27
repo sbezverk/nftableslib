@@ -1,6 +1,7 @@
 package nftableslib
 
 import (
+	"encoding/json"
 	"sync"
 
 	"github.com/google/nftables"
@@ -15,6 +16,7 @@ type ChainsInterface interface {
 type ChainFuncs interface {
 	Chain(name string) RulesInterface
 	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType)
+	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
 }
 
@@ -59,6 +61,27 @@ func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nf
 		chainType:      chainType,
 		RulesInterface: newRules(nfc.conn, nfc.table, c),
 	}
+}
+
+func (nfc *nfChains) Dump() ([]byte, error) {
+	nfc.Lock()
+	defer nfc.Unlock()
+	var data []byte
+
+	for _, c := range nfc.chains {
+		if b, err := json.Marshal(&c.chain); err != nil {
+			return nil, err
+		} else {
+			data = append(data, b...)
+		}
+		if b, err := c.Rules().Dump(); err != nil {
+			return nil, err
+		} else {
+			data = append(data, b...)
+		}
+	}
+
+	return data, nil
 }
 
 func newChains(conn NetNS, t *nftables.Table) ChainsInterface {

@@ -9,15 +9,15 @@ import (
 	"github.com/google/nftables/expr"
 )
 
-// packet is used to pass L4 protocol, source/destination address and
+// Packet is used to pass L4 protocol, source/destination address and
 // source/destination ports to build matching expression, only L4 protocol
 // is required.
-type packet struct {
-	l4Proto uint32
-	srcAddr net.IP
-	srcPort uint32
-	dstAddr net.IP
-	dstPort uint32
+type Packet struct {
+	L4Proto uint32
+	SrcAddr net.IP
+	SrcPort uint32
+	DstAddr net.IP
+	DstPort uint32
 }
 
 /*
@@ -185,37 +185,37 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 	return re
 }
 
-// processPacket matches a packet based on the passed parameter and returns
+// ProcessPacket matches a packet based on the passed parameter and returns
 // to the calling chain
-func processIPv4Packet(data packet) []expr.Any {
+func ProcessIPv4Packet(data Packet) []expr.Any {
 	re := []expr.Any{}
 	// Match for L4 protocol if specified
-	if data.l4Proto != 0 {
+	if data.L4Proto != 0 {
 		re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
 		re = append(re, &expr.Cmp{
 			Op:       expr.CmpOpEq,
 			Register: 1,
-			Data:     binaryutil.BigEndian.PutUint32(data.l4Proto),
+			Data:     binaryutil.BigEndian.PutUint32(data.L4Proto),
 		})
 	} else {
 		// If L4 protocol is not specififed returning empty matching expression
 		return re
 	}
 	// if source IP address specified, get the expression to match
-	if data.srcAddr != nil {
-		re = append(re, getExprForIPv4Src(data.srcAddr)...)
+	if data.SrcAddr != nil {
+		re = append(re, getExprForIPv4Src(data.SrcAddr)...)
 	}
 	// if destination IP address specified, get the expression to match
-	if data.dstAddr != nil {
-		re = append(re, getExprForIPv4Dst(data.dstAddr)...)
+	if data.DstAddr != nil {
+		re = append(re, getExprForIPv4Dst(data.DstAddr)...)
 	}
 	// If source port is specified, then add condition for source port
-	if data.srcPort != 0 {
-		re = append(re, getExprForIPv4SrcPort(data.srcPort)...)
+	if data.SrcPort != 0 {
+		re = append(re, getExprForIPv4SrcPort(data.SrcPort)...)
 	}
 	// If destination port is specified, then add condition for destination port
-	if data.srcPort != 0 {
-		re = append(re, getExprForIPv4DstPort(data.dstPort)...)
+	if data.DstPort != 0 {
+		re = append(re, getExprForIPv4DstPort(data.DstPort)...)
 	}
 	re = append(re, &expr.Verdict{
 		Kind: expr.VerdictKind(unix.NFT_RETURN),
