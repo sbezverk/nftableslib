@@ -20,8 +20,9 @@ func TestMock(t *testing.T) {
 
 	p := nftableslib.Packet{
 		L4Proto: unix.IPPROTO_TCP,
-		SrcPort: uint32(50705),
-		DstAddr: net.ParseIP("127.0.0.1"),
+		Port:    uint32(50705),
+		Addr:    net.ParseIP("192.168.10.1"),
+		Src:     true,
 	}
 
 	m.ti.Tables().Table("filter", nftables.TableFamilyIPv4).Chains().Chain("chain-1").Rules().Create("rule-1", nftableslib.ProcessIPv4Packet(p))

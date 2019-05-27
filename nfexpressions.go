@@ -14,10 +14,9 @@ import (
 // is required.
 type Packet struct {
 	L4Proto uint32
-	SrcAddr net.IP
-	SrcPort uint32
-	DstAddr net.IP
-	DstPort uint32
+	Addr    net.IP
+	Port    uint32
+	Src     bool
 }
 
 /*
@@ -185,37 +184,28 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 	return re
 }
 
-// ProcessPacket matches a packet based on the passed parameter and returns
+// ProcessIPv4Packet matches a packet based on the passed parameter and returns
 // to the calling chain
 func ProcessIPv4Packet(data Packet) []expr.Any {
 	re := []expr.Any{}
+
+	// if IP address specified, get the expression to match
+	if data.Addr != nil {
+		re = append(re, getExprForIPv4(data)...)
+	}
 	// Match for L4 protocol if specified
-	if data.L4Proto != 0 {
-		re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
-		re = append(re, &expr.Cmp{
-			Op:       expr.CmpOpEq,
-			Register: 1,
-			Data:     binaryutil.BigEndian.PutUint32(data.L4Proto),
-		})
-	} else {
-		// If L4 protocol is not specififed returning empty matching expression
+	if data.L4Proto == 0 {
 		return re
 	}
-	// if source IP address specified, get the expression to match
-	if data.SrcAddr != nil {
-		re = append(re, getExprForIPv4Src(data.SrcAddr)...)
-	}
-	// if destination IP address specified, get the expression to match
-	if data.DstAddr != nil {
-		re = append(re, getExprForIPv4Dst(data.DstAddr)...)
-	}
-	// If source port is specified, then add condition for source port
-	if data.SrcPort != 0 {
-		re = append(re, getExprForIPv4SrcPort(data.SrcPort)...)
-	}
-	// If destination port is specified, then add condition for destination port
-	if data.DstPort != 0 {
-		re = append(re, getExprForIPv4DstPort(data.DstPort)...)
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(data.L4Proto),
+	})
+	// If port is specified, then add condition for the port
+	if data.Port != 0 {
+		re = append(re, getExprForIPv4Port(data)...)
 	}
 	re = append(re, &expr.Verdict{
 		Kind: expr.VerdictKind(unix.NFT_RETURN),
@@ -224,76 +214,51 @@ func ProcessIPv4Packet(data Packet) []expr.Any {
 	return re
 }
 
-// getExptForIPv4Src
-func getExprForIPv4Src(addr net.IP) []expr.Any {
+// getExptForIPv4
+func getExprForIPv4(data Packet) []expr.Any {
 	re := []expr.Any{}
+	offset := uint32(16)
+	if data.Src {
+		offset = uint32(12)
+	}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
 		Base:         expr.PayloadBaseNetworkHeader,
-		Offset:       16, // Offset of source ipv4 address in network header
-		Len:          4,  // length bytes for ipv4 address
+		Offset:       offset, // Offset ipv4 address in network header
+		Len:          4,      // length bytes for ipv4 address
 	})
-	re = append(re,
-		&expr.Immediate{
-			Register: 1,
-			Data:     addr.To4(),
-		},
-	)
-
-	return re
-}
-
-// getExptForIPv4Dst
-func getExprForIPv4Dst(addr net.IP) []expr.Any {
-	re := []expr.Any{}
-	re = append(re, &expr.Payload{
-		DestRegister: 1,
-		Base:         expr.PayloadBaseNetworkHeader,
-		Offset:       20, // Offset of destination ipv4 address in network header
-		Len:          4,  // length bytes for ipv4 address
+	baddr := bigEndianIPv4([]byte(data.Addr.To4()))
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     baddr,
 	})
-	re = append(re,
-		&expr.Immediate{
-			Register: 1,
-			Data:     addr.To4(),
-		},
-	)
 
 	return re
 }
 
 // getExprForIPv4SrcPort returns expression to match by ipv4 TCP source port
-func getExprForIPv4SrcPort(port uint32) []expr.Any {
+func getExprForIPv4Port(data Packet) []expr.Any {
 	re := []expr.Any{}
+	offset := uint32(2)
+	if data.Src {
+		offset = 0
+	}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
 		Base:         expr.PayloadBaseTransportHeader,
-		Offset:       2, // Offset for a transport protocol header
-		Len:          2, // 2 bytes for port
+		Offset:       offset, // Offset for a transport protocol header
+		Len:          2,      // 2 bytes for port
 	})
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint32(port),
+		Data:     binaryutil.BigEndian.PutUint32(data.Port),
 	})
 
 	return re
 }
 
-// getExprForIPv4DstPort returns expression to match by ipv4 TCP destination port
-func getExprForIPv4DstPort(port uint32) []expr.Any {
-	re := []expr.Any{}
-	re = append(re, &expr.Payload{
-		DestRegister: 1,
-		Base:         expr.PayloadBaseTransportHeader,
-		Offset:       4, // Offset for a transport protocol header
-		Len:          2, // 2 bytes for port
-	})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint32(port),
-	})
-
-	return re
+func bigEndianIPv4(addr []byte) []byte {
+	return []byte{addr[3], addr[2], addr[1], addr[0]}
 }

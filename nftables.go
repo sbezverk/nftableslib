@@ -2,6 +2,7 @@ package nftableslib
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/google/nftables"
@@ -152,4 +153,8 @@ func (nft *nfTables) Dump() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func printTable(t *nftables.Table) []byte {
+	return []byte(fmt.Sprintf("\nTable: %s Family: %+v Flags: %x Use: %x \n", t.Name, t.Family, t.Flags, t.Use))
 }
