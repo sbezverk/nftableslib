@@ -3,7 +3,6 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/google/nftables"
@@ -81,7 +80,6 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 }
 
 func (nfr *nfRule) MarshalJSON() ([]byte, error) {
-	log.Printf("Custom JSON rule encoder was called")
 	var jsonData []byte
 
 	jsonData = append(jsonData, '[')
@@ -97,16 +95,14 @@ func (nfr *nfRule) MarshalJSON() ([]byte, error) {
 		}
 	}
 	jsonData = append(jsonData, ']')
-	log.Printf("jsonData: %s", jsonData)
 
 	return jsonData, nil
 }
 
 func marshalExpression(exp expr.Any) ([]byte, error) {
-	var jsonData []byte
+	var b []byte
 
 	if e, ok := exp.(*expr.Meta); ok {
-		var b []byte
 		b = append(b, []byte("{\"Key\":")...)
 		switch e.Key {
 		case expr.MetaKeyLEN:
@@ -165,41 +161,111 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(",\"Register\":")...)
 		b = append(b, []byte(fmt.Sprintf("%d}", e.Register))...)
 
-		log.Printf("%s", b)
 		return b, nil
 	}
-	/*	case expr.Cmp:
-			log.Printf("type: %v", v)
-		case expr.Payload:
-			log.Printf("type: %v", v)
-		case expr.Immediate:
-			log.Printf("type: %v", v)
-		case expr.Lookup:
-			log.Printf("type: %v", v)
-		case expr.Masq:
-			log.Printf("type: %v", v)
-		case expr.NAT:
-			log.Printf("type: %v", v)
-		case expr.Objref:
-			log.Printf("type: %v", v)
-		case expr.Queue:
-			log.Printf("type: %v", v)
-		case expr.Redir:
-			log.Printf("type: %v", v)
-		case expr.Rt:
-			log.Printf("type: %v", v)
-		case expr.Verdict:
-			log.Printf("type: %v", v)
+	if e, ok := exp.(*expr.Cmp); ok {
+		b = append(b, []byte("{\"Op\":")...)
+		switch e.Op {
+		case expr.CmpOpEq:
+			b = append(b, []byte("\"expr.CmpOpEq\"")...)
+		case expr.CmpOpNeq:
+			b = append(b, []byte("\"expr.CmpOpNeq\"")...)
+		case expr.CmpOpLt:
+			b = append(b, []byte("\"expr.CmpOpLt\"")...)
+		case expr.CmpOpLte:
+			b = append(b, []byte("\"expr.CmpOpLte\"")...)
+		case expr.CmpOpGt:
+			b = append(b, []byte("\"expr.CmpOpGt\"")...)
+		case expr.CmpOpGte:
+			b = append(b, []byte("\"expr.CmpOpGte\"")...)
 		default:
-			log.Printf("type: %v", v)
+			b = append(b, []byte("\"Unknown Op\"")...)
 		}
-	*/
-	b, err := json.Marshal(&exp)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("Unknown")
-	jsonData = append(jsonData, b...)
+		b = append(b, []byte(",\"Register\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Register))...)
 
-	return jsonData, nil
+		b = append(b, []byte(",\"Data\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.Data); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.Data[i])...)
+			if i < len(e.Data)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, '}')
+		return b, nil
+	}
+	if e, ok := exp.(*expr.Payload); ok {
+		b = append(b, []byte("{\"DestRegister\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.DestRegister))...)
+		b = append(b, []byte(",\"Base\":")...)
+		switch e.Base {
+		case expr.PayloadBaseLLHeader:
+			b = append(b, []byte("\"expr.PayloadBaseLLHeader\"")...)
+		case expr.PayloadBaseNetworkHeader:
+			b = append(b, []byte("\"expr.PayloadBaseNetworkHeader\"")...)
+		case expr.PayloadBaseTransportHeader:
+			b = append(b, []byte("\"expr.PayloadBaseTransportHeader\"")...)
+		default:
+			b = append(b, []byte("\"Unknown Base\"")...)
+		}
+		b = append(b, []byte(",\"Len\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Len))...)
+		b = append(b, []byte(",\"Offset\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d}", e.Offset))...)
+		return b, nil
+	}
+	if e, ok := exp.(*expr.Immediate); ok {
+		b = append(b, []byte("{\"Register\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Register))...)
+		b = append(b, []byte(",\"Data\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.Data); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.Data[i])...)
+			if i < len(e.Data)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, '}')
+		return b, nil
+	}
+	if e, ok := exp.(*expr.Verdict); ok {
+		b = append(b, []byte("{\"Kind\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%#x\"", uint32(e.Kind)))...)
+		if e.Chain != "" {
+			b = append(b, []byte(",\"Chain\":")...)
+			b = append(b, []byte(fmt.Sprintf("%s", e.Chain))...)
+		}
+		b = append(b, []byte("}")...)
+		return b, nil
+	}
+	if e, ok := exp.(*expr.Redir); ok {
+		b = append(b, []byte("{\"RegisterProtoMin\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegisterProtoMin))...)
+		b = append(b, []byte(",\"RegisterProtoMax\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegisterProtoMax))...)
+		b = append(b, []byte(",\"Flags\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%#x\"}", e.Flags))...)
+		return b, nil
+	}
+	/*
+
+		TODO: (sbezverk)
+
+			expr.Lookup:
+
+			expr.Masq:
+
+			expr.NAT:
+
+			expr.Objref:
+
+			expr.Queue:
+
+			expr.Rt:
+	*/
+
+	return nil, fmt.Errorf("unknown expression type %T", exp)
 }

@@ -227,7 +227,7 @@ func getExprForIPv4(data Packet) []expr.Any {
 		Offset:       offset, // Offset ipv4 address in network header
 		Len:          4,      // length bytes for ipv4 address
 	})
-	baddr := bigEndianIPv4([]byte(data.Addr.To4()))
+	baddr := swapBytes([]byte(data.Addr.To4()))
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
@@ -250,15 +250,17 @@ func getExprForIPv4Port(data Packet) []expr.Any {
 		Offset:       offset, // Offset for a transport protocol header
 		Len:          2,      // 2 bytes for port
 	})
+	port := make([]byte, 2, 4)
+	port = append(port, binaryutil.BigEndian.PutUint16(uint16(data.Port))...)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint32(data.Port),
+		Data:     port,
 	})
 
 	return re
 }
 
-func bigEndianIPv4(addr []byte) []byte {
+func swapBytes(addr []byte) []byte {
 	return []byte{addr[3], addr[2], addr[1], addr[0]}
 }
