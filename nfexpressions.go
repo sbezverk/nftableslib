@@ -9,45 +9,18 @@ import (
 	"github.com/google/nftables/expr"
 )
 
-// Packet is used to pass L4 protocol, source/destination address and
-// source/destination ports to build matching expression, only L4 protocol
-// is required.
-type Packet struct {
+// L3Packet defines parameters of Layer 3 packet processing
+type L3Packet struct {
+	Addr net.IP
+	Src  bool
+}
+
+// L4Packet defines parameters of Layer 4 packet processing
+type L4Packet struct {
 	L4Proto uint32
-	Addr    net.IP
 	Port    uint32
 	Src     bool
 }
-
-/*
-	List of available keys:
-
-    MetaKeyLEN        MetaKey = unix.NFT_META_LEN
-    MetaKeyPROTOCOL   MetaKey = unix.NFT_META_PROTOCOL
-    MetaKeyPRIORITY   MetaKey = unix.NFT_META_PRIORITY
-    MetaKeyMARK       MetaKey = unix.NFT_META_MARK
-    MetaKeyIIF        MetaKey = unix.NFT_META_IIF
-    MetaKeyOIF        MetaKey = unix.NFT_META_OIF
-    MetaKeyIIFNAME    MetaKey = unix.NFT_META_IIFNAME
-    MetaKeyOIFNAME    MetaKey = unix.NFT_META_OIFNAME
-    MetaKeyIIFTYPE    MetaKey = unix.NFT_META_IIFTYPE
-    MetaKeyOIFTYPE    MetaKey = unix.NFT_META_OIFTYPE
-    MetaKeySKUID      MetaKey = unix.NFT_META_SKUID
-    MetaKeySKGID      MetaKey = unix.NFT_META_SKGID
-    MetaKeyNFTRACE    MetaKey = unix.NFT_META_NFTRACE
-    MetaKeyRTCLASSID  MetaKey = unix.NFT_META_RTCLASSID
-    MetaKeySECMARK    MetaKey = unix.NFT_META_SECMARK
-    MetaKeyNFPROTO    MetaKey = unix.NFT_META_NFPROTO
-    MetaKeyL4PROTO    MetaKey = unix.NFT_META_L4PROTO
-    MetaKeyBRIIIFNAME MetaKey = unix.NFT_META_BRI_IIFNAME
-    MetaKeyBRIOIFNAME MetaKey = unix.NFT_META_BRI_OIFNAME
-    MetaKeyPKTTYPE    MetaKey = unix.NFT_META_PKTTYPE
-    MetaKeyCPU        MetaKey = unix.NFT_META_CPU
-    MetaKeyIIFGROUP   MetaKey = unix.NFT_META_IIFGROUP
-    MetaKeyOIFGROUP   MetaKey = unix.NFT_META_OIFGROUP
-    MetaKeyCGROUP     MetaKey = unix.NFT_META_CGROUP
-    MetaKeyPRANDOM    MetaKey = unix.NFT_META_PRANDOM
-*/
 
 func ifname(n string) []byte {
 	b := make([]byte, 16)
@@ -184,6 +157,33 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 	return re
 }
 
+// ProcessL4Packet matches a packet based on the passed parameter and returns
+// to the calling chain
+func ProcessL4Packet(data L4Packet) []expr.Any {
+	re := []expr.Any{}
+
+	// Match for L4 protocol if specified
+	if data.L4Proto == 0 {
+		return re
+	}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(data.L4Proto),
+	})
+	// If port is specified, then add condition for the port
+	if data.Port != 0 {
+		re = append(re, getExprForL4Port(data)...)
+	}
+	re = append(re, &expr.Verdict{
+		Kind: expr.VerdictKind(unix.NFT_RETURN),
+	})
+
+	return re
+}
+
+/*
 // ProcessIPv4Packet matches a packet based on the passed parameter and returns
 // to the calling chain
 func ProcessIPv4Packet(data Packet) []expr.Any {
@@ -213,9 +213,10 @@ func ProcessIPv4Packet(data Packet) []expr.Any {
 
 	return re
 }
+*/
 
 // getExptForIPv4
-func getExprForIPv4(data Packet) []expr.Any {
+func getExprForIPv4(data L3Packet) []expr.Any {
 	re := []expr.Any{}
 	offset := uint32(16)
 	if data.Src {
@@ -238,7 +239,7 @@ func getExprForIPv4(data Packet) []expr.Any {
 }
 
 // getExprForIPv4SrcPort returns expression to match by ipv4 TCP source port
-func getExprForIPv4Port(data Packet) []expr.Any {
+func getExprForL4Port(data L4Packet) []expr.Any {
 	re := []expr.Any{}
 	offset := uint32(2)
 	if data.Src {
@@ -251,7 +252,7 @@ func getExprForIPv4Port(data Packet) []expr.Any {
 		Len:          2,      // 2 bytes for port
 	})
 	port := make([]byte, 2, 4)
-	port = append(port, binaryutil.BigEndian.PutUint16(uint16(data.Port))...)
+	port = append(port, binaryutil.NativeEndian.PutUint16(uint16(data.Port))...)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
