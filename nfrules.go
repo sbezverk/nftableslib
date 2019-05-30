@@ -3,6 +3,7 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/google/nftables"
@@ -16,7 +17,7 @@ type RulesInterface interface {
 
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
-	Create(string, []expr.Any)
+	Create(string, []expr.Any, ...*nftables.SetElement) error
 	Dump() ([]byte, error)
 }
 
@@ -29,14 +30,15 @@ type nfRules struct {
 }
 
 type nfRule struct {
-	rule nftables.Rule
+	rule *nftables.Rule
+	set  *nftables.Set
 }
 
 func (nfr *nfRules) Rules() RuleFuncs {
 	return nfr
 }
 
-func (nfr *nfRules) Create(name string, ruleExpressions []expr.Any) {
+func (nfr *nfRules) Create(name string, ruleExpressions []expr.Any, elements ...*nftables.SetElement) error {
 	nfr.Lock()
 	defer nfr.Unlock()
 
@@ -48,10 +50,20 @@ func (nfr *nfRules) Create(name string, ruleExpressions []expr.Any) {
 		Chain: nfr.chain,
 		Exprs: ruleExpressions,
 	}
+	s := nftables.Set{
+		Table:     nfr.table,
+		Anonymous: true,
+		Constant:  true,
+		KeyType:   nftables.TypeInetService,
+	}
+
 	nfr.conn.AddRule(&r)
 	nfr.rules[name] = &nfRule{
-		rule: r,
+		rule: &r,
+		set:  &s,
 	}
+
+	return nil
 }
 
 func (nfr *nfRules) Dump() ([]byte, error) {
@@ -236,7 +248,7 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(fmt.Sprintf("\"%#x\"", uint32(e.Kind)))...)
 		if e.Chain != "" {
 			b = append(b, []byte(",\"Chain\":")...)
-			b = append(b, []byte(fmt.Sprintf("%s", e.Chain))...)
+			b = append(b, []byte(fmt.Sprintf("\"%s\"", e.Chain))...)
 		}
 		b = append(b, []byte("}")...)
 		return b, nil
@@ -268,4 +280,49 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 	*/
 
 	return nil, fmt.Errorf("unknown expression type %T", exp)
+}
+
+// IPAddr lists possible flavours if specifying ip address, either List or Range can be specified
+type IPAddr struct {
+	List  []net.IPAddr
+	Range [2]net.IPAddr
+}
+
+// L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
+type L3Rule struct {
+	Src     *IPAddr
+	Dst     *IPAddr
+	Verdict *expr.Verdict
+}
+
+// Port lists possible flavours of specifying port information
+type Port struct {
+	List  []uint32
+	Range [2]uint32
+}
+
+// L4Rule contains parameters for L4 based rule
+type L4Rule struct {
+	L4Proto  int
+	Src      *Port
+	Dst      *Port
+	Redirect *uint32
+	Verdict  *expr.Verdict
+}
+
+// Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
+type Rule struct {
+	L3 *L3Rule
+	L4 *L4Rule
+}
+
+// Validate checks parameters passed in struct and returns error if inconsistency is found
+func (r Rule) Validate() error {
+	if r.L3 != nil && r.L4 != nil {
+		return fmt.Errorf("either L3 or L4 but not both can be specified")
+	}
+	if r.L3.Src != nil && r.L3.Dst != nil {
+		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
+	}
+	return nil
 }

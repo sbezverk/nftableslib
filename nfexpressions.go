@@ -15,11 +15,20 @@ type L3Packet struct {
 	Src  bool
 }
 
-// L4Packet defines parameters of Layer 4 packet processing
-type L4Packet struct {
+// L4PortList defines parameters of Layer 4 packet processing
+type L4PortList struct {
 	L4Proto uint32
-	Port    uint32
+	Port    []uint32
 	Src     bool
+	expr.Verdict
+}
+
+// L4PortRange defines parameters of Layer 4 packet processing
+type L4PortRange struct {
+	L4Proto  uint32
+	FromPort uint32
+	ToPort   uint32
+	Src      bool
 }
 
 func ifname(n string) []byte {
@@ -159,7 +168,7 @@ func processPortInChain(proto uint32, port uint32, chain string) []expr.Any {
 
 // ProcessL4Packet matches a packet based on the passed parameter and returns
 // to the calling chain
-func ProcessL4Packet(data L4Packet) []expr.Any {
+func ProcessL4Packet(data L4PortList) []expr.Any {
 	re := []expr.Any{}
 
 	// Match for L4 protocol if specified
@@ -173,11 +182,16 @@ func ProcessL4Packet(data L4Packet) []expr.Any {
 		Data:     binaryutil.BigEndian.PutUint32(data.L4Proto),
 	})
 	// If port is specified, then add condition for the port
-	if data.Port != 0 {
+	if len(data.Port) != 0 {
 		re = append(re, getExprForL4Port(data)...)
 	}
+	kind := data.Verdict.Kind
+	if kind == 0 {
+		kind = unix.NFT_RETURN
+	}
 	re = append(re, &expr.Verdict{
-		Kind: expr.VerdictKind(unix.NFT_RETURN),
+		Kind:  kind,
+		Chain: data.Verdict.Chain,
 	})
 
 	return re
@@ -239,7 +253,7 @@ func getExprForIPv4(data L3Packet) []expr.Any {
 }
 
 // getExprForIPv4SrcPort returns expression to match by ipv4 TCP source port
-func getExprForL4Port(data L4Packet) []expr.Any {
+func getExprForL4Port(data L4PortList) []expr.Any {
 	re := []expr.Any{}
 	offset := uint32(2)
 	if data.Src {
@@ -252,7 +266,7 @@ func getExprForL4Port(data L4Packet) []expr.Any {
 		Len:          2,      // 2 bytes for port
 	})
 	port := make([]byte, 2, 4)
-	port = append(port, binaryutil.NativeEndian.PutUint16(uint16(data.Port))...)
+	port = append(port, binaryutil.NativeEndian.PutUint16(uint16(data.Port[0]))...)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
