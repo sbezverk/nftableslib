@@ -284,8 +284,19 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 
 // IPAddr lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddr struct {
-	List  []net.IPAddr
-	Range [2]net.IPAddr
+	List  []*net.IPAddr
+	Range [2]*net.IPAddr
+}
+
+// Validate checks IPAddr struct
+func (ip *IPAddr) Validate() error {
+	if len(ip.List) != 0 && (ip.Range[0] != nil || ip.Range[1] != nil) {
+		return fmt.Errorf("either List or Range but not both can be specified")
+	}
+	if len(ip.List) == 0 && (ip.Range[0] == nil || ip.Range[1] == nil) {
+		return fmt.Errorf("neither List nor Range is specified")
+	}
+	return nil
 }
 
 // L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
@@ -295,10 +306,47 @@ type L3Rule struct {
 	Verdict *expr.Verdict
 }
 
+// Validate checks parameters of L3Rule struct
+func (l3 *L3Rule) Validate() error {
+	if l3.Src != nil && l3.Dst != nil {
+		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
+	}
+	if l3.Src == nil && l3.Dst == nil {
+		return fmt.Errorf("neither L3 Src nor L3 is specified")
+	}
+	if l3.Verdict == nil {
+		return fmt.Errorf("L3 does not have Verdict specified")
+	}
+	if l3.Src != nil {
+		if err := l3.Src.Validate(); err != nil {
+			return err
+		}
+	}
+	if l3.Dst != nil {
+		if err := l3.Src.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Port lists possible flavours of specifying port information
 type Port struct {
-	List  []uint32
-	Range [2]uint32
+	List  []*uint32
+	Range [2]*uint32
+}
+
+// Validate check parameters of Port struct
+func (p *Port) Validate() error {
+	if len(p.List) != 0 && (p.Range[0] != nil || p.Range[1] != nil) {
+		return fmt.Errorf("either List or Range but not both can be specified")
+	}
+	if len(p.List) == 0 && (p.Range[0] == nil || p.Range[1] == nil) {
+		return fmt.Errorf("neither List nor Range is specified")
+	}
+
+	return nil
 }
 
 // L4Rule contains parameters for L4 based rule
@@ -308,6 +356,36 @@ type L4Rule struct {
 	Dst      *Port
 	Redirect *uint32
 	Verdict  *expr.Verdict
+}
+
+// Validate checks parameters of L4Rule struct
+func (l4 *L4Rule) Validate() error {
+	if l4.L4Proto == 0 {
+		return fmt.Errorf("L4Proto cannot be 0")
+	}
+	if l4.Src != nil && l4.Dst != nil {
+		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
+	}
+	if l4.Src == nil && l4.Dst == nil {
+		return fmt.Errorf("neither L3 Src nor L3 is specified")
+	}
+	if l4.Src != nil {
+		if err := l4.Src.Validate(); err != nil {
+			return err
+		}
+	}
+	if l4.Dst != nil {
+		if err := l4.Src.Validate(); err != nil {
+			return err
+		}
+	}
+	if l4.Redirect != nil && l4.Verdict != nil {
+		return fmt.Errorf("either Verdict or Redirect but not both can be specified")
+	}
+	if l4.Redirect == nil && l4.Verdict == nil {
+		return fmt.Errorf("neither Verdict nor Redirect is specified")
+	}
+	return nil
 }
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
@@ -321,8 +399,12 @@ func (r Rule) Validate() error {
 	if r.L3 != nil && r.L4 != nil {
 		return fmt.Errorf("either L3 or L4 but not both can be specified")
 	}
-	if r.L3.Src != nil && r.L3.Dst != nil {
-		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
+	if r.L3 != nil {
+		return r.L3.Validate()
 	}
-	return nil
+	if r.L4 != nil {
+		return r.L4.Validate()
+	}
+
+	return fmt.Errorf("L3 or L4 parameters must be specified")
 }
