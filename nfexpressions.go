@@ -322,3 +322,24 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.I
 
 	return re, nil
 }
+
+// getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
+func getExprForListIP(set nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       offset, // Offset ipv4 address in network header
+		Len:          4,      // length bytes for ipv4 address
+	})
+
+	re = append(re, &expr.Lookup{
+		SourceRegister: 1,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	})
+
+	return re, nil
+}

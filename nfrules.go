@@ -3,6 +3,7 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 
@@ -43,26 +44,28 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	if err := rule.Validate(); err != nil {
 		return err
 	}
+	set := nftables.Set{
+		Anonymous: false,
+		Constant:  true,
+		Name:      name,
+		ID:        uint32(rand.Intn(0xffff)),
+		KeyType:   nftables.TypeInetService,
+		Table:     nfr.table,
+	}
 	var r *nftables.Rule
 	var se []nftables.SetElement
 	var err error
 	if rule.L3 != nil {
-		r, se, err = createL3(nfr.table.Family, rule.L3)
+		r, se, err = createL3(nfr.table.Family, rule.L3, set)
 	}
 	if rule.L4 != nil {
-		r, se, err = createL4(rule.L4)
+		r, se, err = createL4(rule.L4, set)
 	}
 	if err != nil {
 		return err
 	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
-	s := &nftables.Set{
-		Anonymous: true,
-		Constant:  true,
-		KeyType:   nftables.TypeInetService,
-		Table:     nfr.table,
-	}
 
 	nfr.Lock()
 	defer nfr.Unlock()
@@ -70,12 +73,12 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		delete(nfr.rules, name)
 	}
 	if len(se) != 0 {
-		nfr.conn.AddSet(s, se)
+		nfr.conn.AddSet(&set, se)
 	}
 	nfr.conn.AddRule(r)
 	nfr.rules[name] = &nfRule{
 		rule: r,
-		set:  s,
+		set:  &set,
 	}
 
 	return nil

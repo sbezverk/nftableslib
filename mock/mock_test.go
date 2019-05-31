@@ -55,6 +55,56 @@ func TestMock(t *testing.T) {
 			},
 			success: true,
 		},
+		{
+			name: "Multiple IPv4s in list, source, exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Dst: &nftableslib.IPAddr{
+						List: []*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.2.1"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.3.1"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.4.1"),
+							},
+						},
+					},
+					Exclude: true,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Multiple IPv4s in list, destination, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Dst: &nftableslib.IPAddr{
+						List: []*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.2.1"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.3.1"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("192.0.4.1"),
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
 	}
 	ipv6Tests := []struct {
 		name    string
@@ -99,6 +149,53 @@ func TestMock(t *testing.T) {
 			},
 			success: true,
 		},
+		{
+			name: "Multiple IPv6s in list, source, exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Dst: &nftableslib.IPAddr{
+						List: []*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("2001:0101::1"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
+							},
+						},
+					},
+					Exclude: true,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Multiple IPv6s in list, destination, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Dst: &nftableslib.IPAddr{
+						List: []*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("2001:470:b87e:81::11"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("fe80::5054:ff:fe6c:1c4d"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
 	}
 
 	m := InitMockConn()
@@ -127,30 +224,6 @@ func TestMock(t *testing.T) {
 			t.Errorf("Test: %s failed with error: %v", tt.name, err)
 		}
 	}
-
-	/*
-		p1 := nftableslib.Rule{
-			L3: &nftableslib.L3Rule{
-				Src: &nftableslib.IPAddr{
-					List: []*net.IPAddr{
-						&net.IPAddr{
-							IP: net.ParseIP("192.0.2.1"),
-						},
-						&net.IPAddr{
-							IP: net.ParseIP("192.0.3.1"),
-						},
-						&net.IPAddr{
-							IP: net.ParseIP("192.0.4.1"),
-						},
-					},
-				},
-				Exclude: false,
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
-			},
-		}
-	*/
 
 	if err := m.Flush(); err != nil {
 		t.Errorf("Failed Flushing Tables with error: %v", err)

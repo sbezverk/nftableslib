@@ -177,20 +177,25 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(fmt.Sprintf("\"%#x\"}", e.Flags))...)
 		return b, nil
 	}
+	if e, ok := exp.(*expr.Lookup); ok {
+		b = append(b, []byte("{\"SourceRegister\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.SourceRegister))...)
+		b = append(b, []byte(",\"DestRegister\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.DestRegister))...)
+		b = append(b, []byte(",\"SetID\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.SetID))...)
+		b = append(b, []byte(",\"SetName\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%s\"", e.SetName))...)
+		b = append(b, []byte(",\"Invert\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%t\"}", e.Invert))...)
+		return b, nil
+	}
 	/*
-
 		TODO: (sbezverk)
-
-			expr.Lookup:
-
 			expr.Masq:
-
 			expr.NAT:
-
 			expr.Objref:
-
 			expr.Queue:
-
 			expr.Rt:
 	*/
 
