@@ -22,7 +22,6 @@ func TestMock(t *testing.T) {
 	p1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
 			Src: &nftableslib.IPAddr{
-				Exclude: false,
 				List: []*net.IPAddr{
 					&net.IPAddr{
 						IP: net.ParseIP("192.0.2.1"),
@@ -35,6 +34,7 @@ func TestMock(t *testing.T) {
 					},
 				},
 			},
+			Exclude: false,
 			Verdict: &expr.Verdict{
 				Kind: expr.VerdictKind(unix.NFT_JUMP),
 			},

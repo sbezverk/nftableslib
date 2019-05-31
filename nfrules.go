@@ -45,11 +45,15 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	}
 	var r *nftables.Rule
 	var se []nftables.SetElement
+	var err error
 	if rule.L3 != nil {
-		r, se = createL3(rule)
+		r, se, err = createL3(nfr.table.Family, rule.L3)
 	}
 	if rule.L4 != nil {
-		r, se = createL4(rule)
+		r, se, err = createL4(rule.L4)
+	}
+	if err != nil {
+		return err
 	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
@@ -104,9 +108,8 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 
 // IPAddr lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddr struct {
-	Exclude bool
-	List    []*net.IPAddr
-	Range   [2]*net.IPAddr
+	List  []*net.IPAddr
+	Range [2]*net.IPAddr
 }
 
 // Validate checks IPAddr struct
@@ -124,6 +127,7 @@ func (ip *IPAddr) Validate() error {
 type L3Rule struct {
 	Src     *IPAddr
 	Dst     *IPAddr
+	Exclude bool
 	Verdict *expr.Verdict
 }
 
@@ -154,9 +158,8 @@ func (l3 *L3Rule) Validate() error {
 
 // Port lists possible flavours of specifying port information
 type Port struct {
-	Exclude bool
-	List    []*uint32
-	Range   [2]*uint32
+	List  []*uint32
+	Range [2]*uint32
 }
 
 // Validate check parameters of Port struct
@@ -173,9 +176,11 @@ func (p *Port) Validate() error {
 
 // L4Rule contains parameters for L4 based rule
 type L4Rule struct {
-	L4Proto  int
-	Src      *Port
-	Dst      *Port
+	L4Proto int
+	Src     *Port
+	Dst     *Port
+	// TODO Does validation needed for Exclude?
+	Exclude  bool
 	Redirect *uint32
 	Verdict  *expr.Verdict
 }
