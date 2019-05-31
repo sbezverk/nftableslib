@@ -16,6 +16,7 @@ type NetNS interface {
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
+	AddSet(*nftables.Set, []nftables.SetElement) error
 }
 
 // TablesInterface defines a top level interface

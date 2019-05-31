@@ -13,6 +13,7 @@ type Interface interface {
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
+	AddSet(*nftables.Set, []nftables.SetElement) error
 }
 
 // Mock defines type and methods to simulate operations with tables
@@ -51,6 +52,11 @@ func (m *Mock) AddTable(t *nftables.Table) *nftables.Table {
 // AddChain not used
 func (m *Mock) AddChain(c *nftables.Chain) *nftables.Chain {
 	return c
+}
+
+// AddSet not used
+func (m *Mock) AddSet(s *nftables.Set, se []nftables.SetElement) error {
+	return nil
 }
 
 // InitMockConn initializes mock connection of the nftables family
