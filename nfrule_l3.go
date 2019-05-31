@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/google/nftables/expr"
-
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 )
 
 func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
-
 	// IPv4 source address offset - 12, destination address offset - 16
 	// IPv6 source address offset - 8, destination address offset - 24
 	var ruleAddr *IPAddr
@@ -44,7 +42,7 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nf
 		return processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, rule.Verdict, set)
 	}
 	if ruleAddr.Range[0] != nil && ruleAddr.Range[1] != nil {
-		return processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude, rule.Verdict, set)
+		return processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude, rule.Verdict)
 	}
 	return nil, nil, fmt.Errorf("both address list and address range is empry")
 }
@@ -78,7 +76,7 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IP
 		return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 	}
 
-	expr, err := getExprForListIP(set, offset, excl)
+	expr, err := getExprForListIP(l3proto, set, offset, excl)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,7 +87,13 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IP
 	}, setElements, nil
 }
 
-func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr,
-	excl bool, verdict *expr.Verdict, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
-	return &nftables.Rule{}, nil, nil
+func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+	expr, err := getExprForRangeIP(l3proto, offset, rng, excl)
+	if err != nil {
+		return nil, nil, err
+	}
+	expr = append(expr, verdict)
+	return &nftables.Rule{
+		Exprs: expr,
+	}, nil, nil
 }

@@ -105,6 +105,28 @@ func TestMock(t *testing.T) {
 			},
 			success: true,
 		},
+		{
+			name: "IPv4 Range, destination, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddr{
+						Range: [2]*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("1.1.1.0"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("2.2.2.0"),
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
 	}
 	ipv6Tests := []struct {
 		name    string
@@ -185,6 +207,28 @@ func TestMock(t *testing.T) {
 							},
 							&net.IPAddr{
 								IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "IPv6 Range, destination, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Dst: &nftableslib.IPAddr{
+						Range: [2]*net.IPAddr{
+							&net.IPAddr{
+								IP: net.ParseIP("2001:470:b87e:81::11"),
+							},
+							&net.IPAddr{
+								IP: net.ParseIP("2001:470:b87e:89::11"),
 							},
 						},
 					},

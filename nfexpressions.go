@@ -294,11 +294,15 @@ func swapBytes(addr []byte) []byte {
 func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.IPAddr, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 
+	addrLen := 4
+	if l3proto == nftables.TableFamilyIPv6 {
+		addrLen = 16
+	}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
 		Base:         expr.PayloadBaseNetworkHeader,
-		Offset:       offset, // Offset ipv4 address in network header
-		Len:          4,      // length bytes for ipv4 address
+		Offset:       offset,          // Offset ipv4 address in network header
+		Len:          uint32(addrLen), // length bytes for ipv4 address
 	})
 	var baddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
@@ -307,7 +311,7 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.I
 	if l3proto == nftables.TableFamilyIPv6 {
 		baddr = swapBytes([]byte(addr.IP.To16()))
 	}
-	if baddr == nil {
+	if len(baddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", addr.String())
 	}
 	op := expr.CmpOpEq
@@ -324,14 +328,18 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.I
 }
 
 // getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
-func getExprForListIP(set nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
+func getExprForListIP(l3proto nftables.TableFamily, set nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 
+	addrLen := 4
+	if l3proto == nftables.TableFamilyIPv6 {
+		addrLen = 16
+	}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
 		Base:         expr.PayloadBaseNetworkHeader,
-		Offset:       offset, // Offset ipv4 address in network header
-		Len:          4,      // length bytes for ipv4 address
+		Offset:       offset,          // Offset ip address in network header
+		Len:          uint32(addrLen), // length bytes for ip address
 	})
 
 	re = append(re, &expr.Lookup{
@@ -341,5 +349,51 @@ func getExprForListIP(set nftables.Set, offset uint32, excl bool) ([]expr.Any, e
 		SetName:        set.Name,
 	})
 
+	return re, nil
+}
+
+// getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
+func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	addrLen := 4
+	if l3proto == nftables.TableFamilyIPv6 {
+		addrLen = 16
+	}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       offset,          // Offset ipv4 address in network header
+		Len:          uint32(addrLen), // length bytes for ipv4 address
+	})
+	var fromAddr, toAddr []byte
+	if l3proto == nftables.TableFamilyIPv4 {
+		fromAddr = swapBytes([]byte(rng[0].IP.To4()))
+		toAddr = swapBytes([]byte(rng[1].IP.To4()))
+	}
+	if l3proto == nftables.TableFamilyIPv6 {
+		fromAddr = swapBytes([]byte(rng[0].IP.To16()))
+		toAddr = swapBytes([]byte(rng[1].IP.To16()))
+	}
+	if len(fromAddr) == 0 {
+		return nil, fmt.Errorf("invalid ip %s", rng[0].String())
+	}
+	if len(toAddr) == 0 {
+		return nil, fmt.Errorf("invalid ip %s", rng[1].String())
+	}
+	if excl {
+		// range expression will be usedwhen it is available
+	} else {
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpGte,
+			Register: 1,
+			Data:     fromAddr,
+		})
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpLte,
+			Register: 1,
+			Data:     toAddr,
+		})
+	}
 	return re, nil
 }
