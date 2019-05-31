@@ -1,7 +1,10 @@
 package nftableslib
 
 import (
+	"fmt"
 	"net"
+
+	"github.com/google/nftables"
 
 	"golang.org/x/sys/unix"
 
@@ -276,6 +279,46 @@ func getExprForL4Port(data L4PortList) []expr.Any {
 	return re
 }
 
+// New calls
+
 func swapBytes(addr []byte) []byte {
-	return []byte{addr[3], addr[2], addr[1], addr[0]}
+	l := len(addr)
+	r := make([]byte, l)
+	for i := 0; i < len(addr); i++ {
+		r[l-1-i] = addr[i]
+	}
+	return r
+}
+
+// getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
+func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.IPAddr, excl bool) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       offset, // Offset ipv4 address in network header
+		Len:          4,      // length bytes for ipv4 address
+	})
+	var baddr []byte
+	if l3proto == nftables.TableFamilyIPv4 {
+		baddr = swapBytes([]byte(addr.IP.To4()))
+	}
+	if l3proto == nftables.TableFamilyIPv6 {
+		baddr = swapBytes([]byte(addr.IP.To16()))
+	}
+	if baddr == nil {
+		return nil, fmt.Errorf("invalid ip %s", addr.String())
+	}
+	op := expr.CmpOpEq
+	if excl {
+		op = expr.CmpOpNeq
+	}
+	re = append(re, &expr.Cmp{
+		Op:       op,
+		Register: 1,
+		Data:     baddr,
+	})
+
+	return re, nil
 }

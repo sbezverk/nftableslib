@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/google/nftables/expr"
+
 	"github.com/google/nftables"
 )
 
@@ -39,18 +41,29 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule) (*nftables.Rule, []nft
 		return nil, nil, fmt.Errorf("both source and destination are nil")
 	}
 	if len(ruleAddr.List) != 0 {
-		return processAddrList(l3proto, addrOffset, ruleAddr.List)
+		return processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, rule.Verdict)
 	}
 	if ruleAddr.Range[0] != nil && ruleAddr.Range[1] != nil {
-		return processAddrRange(l3proto, addrOffset, ruleAddr.Range)
+		return processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude, rule.Verdict)
 	}
 	return nil, nil, fmt.Errorf("both address list and address range is empry")
 }
 
-func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IPAddr) (*nftables.Rule, []nftables.SetElement, error) {
+func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+	if len(list) == 1 {
+		// Special case with a single entry in the list, as a result it does not require to build SetElement
+		expr, err := getExprForSingleIP(l3proto, offset, list[0], excl)
+		if err != nil {
+			return nil, nil, err
+		}
+		expr = append(expr, verdict)
+		return &nftables.Rule{
+			Exprs: expr,
+		}, nil, nil
+	}
 	return &nftables.Rule{}, nil, nil
 }
 
-func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr) (*nftables.Rule, []nftables.SetElement, error) {
+func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
 	return &nftables.Rule{}, nil, nil
 }

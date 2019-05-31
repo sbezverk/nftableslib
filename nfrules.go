@@ -148,7 +148,7 @@ func (l3 *L3Rule) Validate() error {
 		}
 	}
 	if l3.Dst != nil {
-		if err := l3.Src.Validate(); err != nil {
+		if err := l3.Dst.Validate(); err != nil {
 			return err
 		}
 	}
