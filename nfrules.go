@@ -205,7 +205,7 @@ func (l4 *L4Rule) Validate() error {
 		}
 	}
 	if l4.Dst != nil {
-		if err := l4.Src.Validate(); err != nil {
+		if err := l4.Dst.Validate(); err != nil {
 			return err
 		}
 	}

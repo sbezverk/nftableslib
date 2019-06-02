@@ -234,7 +234,8 @@ func TestMock(t *testing.T) {
 					},
 					Exclude: false,
 					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
+						Kind:  expr.VerdictKind(unix.NFT_JUMP),
+						Chain: "fake_chain_1",
 					},
 				},
 			},
@@ -242,6 +243,115 @@ func TestMock(t *testing.T) {
 		},
 	}
 
+	port1 := uint32(8080)
+	port2 := uint32(9090)
+	portRedirect := uint32(15001)
+
+	l4PortTests := []struct {
+		name    string
+		rule    nftableslib.Rule
+		success bool
+	}{
+		{
+			name: "L4 Single source port with verdict",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Src: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind:  expr.VerdictKind(unix.NFT_JUMP),
+						Chain: "fake_chain_1",
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Single destination port with verdict",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_UDP,
+					Src: &nftableslib.Port{
+						List: []*uint32{
+							&port2,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Single destination port with verdict and exclusion",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+					Exclude: true,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Single source port with redirect",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Src: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+						},
+					},
+					Redirect: &portRedirect,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Single destination port with redirect",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_UDP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+						},
+					},
+					Redirect: &portRedirect,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Single destination port with redirect and exclusion",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+						},
+					},
+					Redirect: &portRedirect,
+					Exclude:  true,
+				},
+			},
+			success: true,
+		},
+	}
 	m := InitMockConn()
 	m.ti.Tables().Create("filter-v4", nftables.TableFamilyIPv4)
 	m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Create(
@@ -265,6 +375,12 @@ func TestMock(t *testing.T) {
 
 	for i, tt := range ipv6Tests {
 		if err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6).Chains().Chain("chain-1-v6").Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule); err != nil {
+			t.Errorf("Test: %s failed with error: %v", tt.name, err)
+		}
+	}
+
+	for i, tt := range l4PortTests {
+		if err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule); err != nil {
 			t.Errorf("Test: %s failed with error: %v", tt.name, err)
 		}
 	}
