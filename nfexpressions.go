@@ -279,8 +279,9 @@ func getExprForL4Port(data L4PortList) []expr.Any {
 	return re
 }
 
+// -------------------------------------------
 // New calls
-
+// -------------------------------------------
 func swapBytes(addr []byte) []byte {
 	l := len(addr)
 	r := make([]byte, l)
@@ -382,18 +383,125 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*net.
 		return nil, fmt.Errorf("invalid ip %s", rng[1].String())
 	}
 	if excl {
-		// range expression will be usedwhen it is available
-	} else {
-		re = append(re, &expr.Cmp{
-			Op:       expr.CmpOpGte,
-			Register: 1,
-			Data:     fromAddr,
-		})
-		re = append(re, &expr.Cmp{
-			Op:       expr.CmpOpLte,
-			Register: 1,
-			Data:     toAddr,
-		})
+		// range expression will be used when it is available
+		return nil, fmt.Errorf("range not yet implmented")
 	}
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpGte,
+		Register: 1,
+		Data:     fromAddr,
+	})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpLte,
+		Register: 1,
+		Data:     toAddr,
+	})
+
+	return re, nil
+}
+
+//
+func getExprForRedirectPort(portToRedirect uint32) []expr.Any {
+	/*
+	  [ immediate reg 1 {port to Redirect} ]
+	  [ redir proto_min reg 1 ]
+	*/
+
+	re := []expr.Any{}
+	re = append(re, &expr.Immediate{
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(portToRedirect),
+	})
+
+	re = append(re, &expr.Redir{
+		RegisterProtoMin: 1,
+	})
+
+	return re
+}
+
+func getExprForSinglePort(l4proto int, offset uint32, port []*uint32, excl bool) ([]expr.Any, error) {
+	if l4proto == 0 {
+		return nil, fmt.Errorf("l4 protocol is 0")
+	}
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(uint32(l4proto)),
+	})
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       offset, // Offset for a transport protocol header
+		Len:          2,      // 2 bytes for port
+	})
+	op := expr.CmpOpEq
+	if excl {
+		op = expr.CmpOpNeq
+	}
+	re = append(re, &expr.Cmp{
+		Op:       op,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint16(uint16(*port[0])),
+	})
+
+	return re, nil
+}
+
+func getExprForListPort(l4proto int, offset uint32, port []*uint32, excl bool, set nftables.Set) ([]expr.Any, error) {
+	if l4proto == 0 {
+		return nil, fmt.Errorf("l4 protocol is 0")
+	}
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(uint32(l4proto)),
+	})
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       offset, // Offset for a transport protocol header
+		Len:          2,      // 2 bytes for port
+	})
+	re = append(re, &expr.Lookup{
+		SourceRegister: 1,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	})
+
+	return re, nil
+}
+
+func getExprForRangePort(l4proto int, offset uint32, port [2]*uint32, excl bool) ([]expr.Any, error) {
+	if l4proto == 0 {
+		return nil, fmt.Errorf("l4 protocol is 0")
+	}
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint32(uint32(l4proto)),
+	})
+	if excl {
+		// Range case not yet implmented
+		return nil, fmt.Errorf("range not yet implemented")
+	}
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpGte,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint16(uint16(*port[0])),
+	})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpLte,
+		Register: 1,
+		Data:     binaryutil.BigEndian.PutUint16(uint16(*port[1])),
+	})
+
 	return re, nil
 }

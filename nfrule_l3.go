@@ -76,24 +76,24 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IP
 		return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 	}
 
-	expr, err := getExprForListIP(l3proto, set, offset, excl)
+	re, err := getExprForListIP(l3proto, set, offset, excl)
 	if err != nil {
 		return nil, nil, err
 	}
-	expr = append(expr, verdict)
+	re = append(re, verdict)
 
 	return &nftables.Rule{
-		Exprs: expr,
+		Exprs: re,
 	}, setElements, nil
 }
 
 func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
-	expr, err := getExprForRangeIP(l3proto, offset, rng, excl)
+	re, err := getExprForRangeIP(l3proto, offset, rng, excl)
 	if err != nil {
 		return nil, nil, err
 	}
-	expr = append(expr, verdict)
+	re = append(re, verdict)
 	return &nftables.Rule{
-		Exprs: expr,
+		Exprs: re,
 	}, nil, nil
 }
