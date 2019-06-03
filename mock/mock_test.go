@@ -351,6 +351,150 @@ func TestMock(t *testing.T) {
 			},
 			success: true,
 		},
+		{
+			name: "L4 list of destination ports with redirects",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Redirect: &portRedirect,
+					Exclude:  false,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 list of destination ports with verdicts",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+					Exclude: false,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 list of destination ports with redirects with exclude",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Redirect: &portRedirect,
+					Exclude:  true,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 list of destination ports with verdicts with exclude",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						List: []*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+					Exclude: true,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Range of destination ports with redirects",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						Range: [2]*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Redirect: &portRedirect,
+					Exclude:  false,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 Range of destination ports with verdicts",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						Range: [2]*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+					Exclude: false,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L4 list of destination ports with redirects with exclude",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						Range: [2]*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Redirect: &portRedirect,
+					Exclude:  true,
+				},
+			},
+			success: false,
+		},
+		{
+			name: "L4 Range of destination ports with verdicts with exclude",
+			rule: nftableslib.Rule{
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Dst: &nftableslib.Port{
+						Range: [2]*uint32{
+							&port1,
+							&port2,
+						},
+					},
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_RETURN),
+					},
+					Exclude: true,
+				},
+			},
+			success: false,
+		},
 	}
 	m := InitMockConn()
 	m.ti.Tables().Create("filter-v4", nftables.TableFamilyIPv4)
@@ -368,20 +512,32 @@ func TestMock(t *testing.T) {
 		nftables.ChainTypeFilter)
 
 	for i, tt := range ipv4Tests {
-		if err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule); err != nil {
-			t.Errorf("Test: %s failed with error: %v", tt.name, err)
+		err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		if err == nil && !tt.success {
+			t.Errorf("Test: %s should fail but succeeded", tt.name)
+		}
+		if err != nil && tt.success {
+			t.Errorf("Test: %s should succeed but fail with error: %v", tt.name, err)
 		}
 	}
 
 	for i, tt := range ipv6Tests {
-		if err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6).Chains().Chain("chain-1-v6").Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule); err != nil {
-			t.Errorf("Test: %s failed with error: %v", tt.name, err)
+		err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6).Chains().Chain("chain-1-v6").Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
+		if err == nil && !tt.success {
+			t.Errorf("Test: %s should fail but succeeded", tt.name)
+		}
+		if err != nil && tt.success {
+			t.Errorf("Test: %s should succeed but fail with error: %v", tt.name, err)
 		}
 	}
 
 	for i, tt := range l4PortTests {
-		if err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule); err != nil {
-			t.Errorf("Test: %s failed with error: %v", tt.name, err)
+		err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		if err == nil && !tt.success {
+			t.Errorf("Test: %s should fail but succeeded", tt.name)
+		}
+		if err != nil && tt.success {
+			t.Errorf("Test: %s should succeed but fail with error: %v", tt.name, err)
 		}
 	}
 
