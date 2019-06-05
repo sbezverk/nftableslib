@@ -2,7 +2,6 @@ package nftableslib
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -11,7 +10,7 @@ import (
 func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	// IPv4 source address offset - 12, destination address offset - 16
 	// IPv6 source address offset - 8, destination address offset - 24
-	var ruleAddr *IPAddr
+	var ruleAddr *IPAddrSpec
 	var addrOffset uint32
 	if rule.Src != nil {
 		ruleAddr = rule.Src
@@ -47,7 +46,7 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nf
 	return nil, nil, fmt.Errorf("both address list and address range is empry")
 }
 
-func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IPAddr,
+func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr,
 	excl bool, verdict *expr.Verdict, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(list) == 1 {
 		// Special case with a single entry in the list, as a result it does not require to build SetElement
@@ -64,12 +63,12 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IP
 	setElements := make([]nftables.SetElement, len(list))
 	if l3proto == nftables.TableFamilyIPv4 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.To4())
+			setElements[i].Key = swapBytes(list[i].IP.IP.To4())
 		}
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.To16())
+			setElements[i].Key = swapBytes(list[i].IP.IP.To16())
 		}
 	}
 	if len(setElements) == 0 {
@@ -87,7 +86,7 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*net.IP
 	}, setElements, nil
 }
 
-func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
 	re, err := getExprForRangeIP(l3proto, offset, rng, excl)
 	if err != nil {
 		return nil, nil, err

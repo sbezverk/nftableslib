@@ -2,7 +2,6 @@ package nftableslib
 
 import (
 	"fmt"
-	"net"
 
 	"github.com/google/nftables"
 
@@ -48,7 +47,7 @@ func swapBytes(addr []byte) []byte {
 }
 
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
-func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.IPAddr, excl bool) ([]expr.Any, error) {
+func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -63,13 +62,13 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *net.I
 	})
 	var baddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		baddr = swapBytes([]byte(addr.IP.To4()))
+		baddr = swapBytes([]byte(addr.IP.IP.To4()))
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		baddr = swapBytes([]byte(addr.IP.To16()))
+		baddr = swapBytes([]byte(addr.IP.IP.To16()))
 	}
 	if len(baddr) == 0 {
-		return nil, fmt.Errorf("invalid ip %s", addr.String())
+		return nil, fmt.Errorf("invalid ip %s", addr.IP.String())
 	}
 	op := expr.CmpOpEq
 	if excl {
@@ -110,7 +109,7 @@ func getExprForListIP(l3proto nftables.TableFamily, set nftables.Set, offset uin
 }
 
 // getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
-func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*net.IPAddr, excl bool) ([]expr.Any, error) {
+func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -125,18 +124,18 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*net.
 	})
 	var fromAddr, toAddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		fromAddr = swapBytes([]byte(rng[0].IP.To4()))
-		toAddr = swapBytes([]byte(rng[1].IP.To4()))
+		fromAddr = swapBytes([]byte(rng[0].IP.IP.To4()))
+		toAddr = swapBytes([]byte(rng[1].IP.IP.To4()))
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		fromAddr = swapBytes([]byte(rng[0].IP.To16()))
-		toAddr = swapBytes([]byte(rng[1].IP.To16()))
+		fromAddr = swapBytes([]byte(rng[0].IP.IP.To16()))
+		toAddr = swapBytes([]byte(rng[1].IP.IP.To16()))
 	}
 	if len(fromAddr) == 0 {
-		return nil, fmt.Errorf("invalid ip %s", rng[0].String())
+		return nil, fmt.Errorf("invalid ip %s", rng[0].IP.String())
 	}
 	if len(toAddr) == 0 {
-		return nil, fmt.Errorf("invalid ip %s", rng[1].String())
+		return nil, fmt.Errorf("invalid ip %s", rng[1].IP.String())
 	}
 	if excl {
 		re = append(re, &expr.Range{

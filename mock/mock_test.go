@@ -12,19 +12,46 @@ import (
 )
 
 func TestMock(t *testing.T) {
+	ipv4Mask := int8(24)
+	ipv6Mask := int8(64)
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
 		success bool
 	}{
 		{
+			name: "Single IPv4 in list, source, no exclusion, with subnet mask",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.2.0"),
+								},
+								CIDR: true,
+								Mask: &ipv4Mask,
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
+		{
 			name: "Single IPv4 in list, source, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Src: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.2.1"),
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.2.1"),
+								},
 							},
 						},
 					},
@@ -40,10 +67,12 @@ func TestMock(t *testing.T) {
 			name: "Single IPv4 in list, destination, exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.2.1"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.2.1"),
+								},
 							},
 						},
 					},
@@ -59,16 +88,20 @@ func TestMock(t *testing.T) {
 			name: "Multiple IPv4s in list, source, exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.2.1"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.3.1"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.4.1"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.2.1"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.3.1"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.4.1"),
+								},
 							},
 						},
 					},
@@ -84,16 +117,20 @@ func TestMock(t *testing.T) {
 			name: "Multiple IPv4s in list, destination, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.2.1"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.3.1"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("192.0.4.1"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.2.1"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.3.1"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("192.0.4.1"),
+								},
 							},
 						},
 					},
@@ -109,13 +146,16 @@ func TestMock(t *testing.T) {
 			name: "IPv4 Range, destination, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Src: &nftableslib.IPAddr{
-						Range: [2]*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("1.1.1.0"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("2.2.2.0"),
+					Src: &nftableslib.IPAddrSpec{
+						Range: [2]*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("1.1.1.0"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2.2.2.0"),
+								},
 							},
 						},
 					},
@@ -137,10 +177,35 @@ func TestMock(t *testing.T) {
 			name: "Single IPv6 in list, source, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Src: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("2001:0101::1"),
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:0101::1"),
+								},
+							},
+						},
+					},
+					Exclude: false,
+					Verdict: &expr.Verdict{
+						Kind: expr.VerdictKind(unix.NFT_JUMP),
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Single IPv6 in list, source, no exclusion, with subnet mask ",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:0101::"),
+								},
+								CIDR: true,
+								Mask: &ipv6Mask,
 							},
 						},
 					},
@@ -156,10 +221,12 @@ func TestMock(t *testing.T) {
 			name: "Single IPv6 in list, destination, exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
+								},
 							},
 						},
 					},
@@ -175,13 +242,16 @@ func TestMock(t *testing.T) {
 			name: "Multiple IPv6s in list, source, exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("2001:0101::1"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:0101::1"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
+								},
 							},
 						},
 					},
@@ -197,16 +267,20 @@ func TestMock(t *testing.T) {
 			name: "Multiple IPv6s in list, destination, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						List: []*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("2001:470:b87e:81::11"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("fe80::5054:ff:fe6c:1c4d"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:470:b87e:81::11"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("fe80::5054:ff:fe6c:1c4d"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
+								},
 							},
 						},
 					},
@@ -222,13 +296,16 @@ func TestMock(t *testing.T) {
 			name: "IPv6 Range, destination, no exclusion",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Dst: &nftableslib.IPAddr{
-						Range: [2]*net.IPAddr{
-							&net.IPAddr{
-								IP: net.ParseIP("2001:470:b87e:81::11"),
-							},
-							&net.IPAddr{
-								IP: net.ParseIP("2001:470:b87e:89::11"),
+					Dst: &nftableslib.IPAddrSpec{
+						Range: [2]*nftableslib.IPAddr{
+							{
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:470:b87e:81::11"),
+								},
+							}, {
+								IP: &net.IPAddr{
+									IP: net.ParseIP("2001:470:b87e:89::11"),
+								},
 							},
 						},
 					},

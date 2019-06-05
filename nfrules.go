@@ -109,14 +109,23 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 	}
 }
 
-// IPAddr lists possible flavours if specifying ip address, either List or Range can be specified
+// IPAddr defines a type of ip address, if it is host address with mask of 32 for ipv4 and mask of 128 for ipv6
+// then CIDR should be false, if it is a network address, then CIDR should be true and Mask set to a number of bits
+// in the address' mask. Mask value is from 0 to 31 for ipv4 and from 0 to 127 for ipv6 addresses.
 type IPAddr struct {
-	List  []*net.IPAddr
-	Range [2]*net.IPAddr
+	IP   *net.IPAddr
+	CIDR bool
+	Mask *int8
+}
+
+// IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
+type IPAddrSpec struct {
+	List  []*IPAddr
+	Range [2]*IPAddr
 }
 
 // Validate checks IPAddr struct
-func (ip *IPAddr) Validate() error {
+func (ip *IPAddrSpec) Validate() error {
 	if len(ip.List) != 0 && (ip.Range[0] != nil || ip.Range[1] != nil) {
 		return fmt.Errorf("either List or Range but not both can be specified")
 	}
@@ -128,8 +137,8 @@ func (ip *IPAddr) Validate() error {
 
 // L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
 type L3Rule struct {
-	Src     *IPAddr
-	Dst     *IPAddr
+	Src     *IPAddrSpec
+	Dst     *IPAddrSpec
 	Exclude bool
 	Verdict *expr.Verdict
 }
