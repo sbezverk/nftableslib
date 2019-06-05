@@ -190,6 +190,48 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(fmt.Sprintf("\"%t\"}", e.Invert))...)
 		return b, nil
 	}
+	if e, ok := exp.(*expr.Range); ok {
+		b = append(b, []byte("{\"Register\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Register))...)
+		b = append(b, []byte(",\"Op\":")...)
+		switch e.Op {
+		case expr.CmpOpEq:
+			b = append(b, []byte("\"expr.CmpOpEq\"")...)
+		case expr.CmpOpNeq:
+			b = append(b, []byte("\"expr.CmpOpNeq\"")...)
+		case expr.CmpOpLt:
+			b = append(b, []byte("\"expr.CmpOpLt\"")...)
+		case expr.CmpOpLte:
+			b = append(b, []byte("\"expr.CmpOpLte\"")...)
+		case expr.CmpOpGt:
+			b = append(b, []byte("\"expr.CmpOpGt\"")...)
+		case expr.CmpOpGte:
+			b = append(b, []byte("\"expr.CmpOpGte\"")...)
+		default:
+			b = append(b, []byte("\"Unknown Op\"")...)
+		}
+
+		b = append(b, []byte(",\"FromData\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.FromData); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.FromData[i])...)
+			if i < len(e.FromData)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, []byte(",\"ToData\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.ToData); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.ToData[i])...)
+			if i < len(e.ToData)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, '}')
+		return b, nil
+	}
 	/*
 		TODO: (sbezverk)
 			expr.Masq:

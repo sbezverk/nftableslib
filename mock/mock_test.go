@@ -460,7 +460,7 @@ func TestMock(t *testing.T) {
 			success: true,
 		},
 		{
-			name: "L4 list of destination ports with redirects with exclude",
+			name: "L4 range of destination ports with redirects with exclude",
 			rule: nftableslib.Rule{
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
@@ -474,7 +474,7 @@ func TestMock(t *testing.T) {
 					Exclude:  true,
 				},
 			},
-			success: false,
+			success: true,
 		},
 		{
 			name: "L4 Range of destination ports with verdicts with exclude",
@@ -493,7 +493,7 @@ func TestMock(t *testing.T) {
 					Exclude: true,
 				},
 			},
-			success: false,
+			success: true,
 		},
 	}
 	m := InitMockConn()

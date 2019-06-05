@@ -139,8 +139,13 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*net.
 		return nil, fmt.Errorf("invalid ip %s", rng[1].String())
 	}
 	if excl {
-		// range expression will be used when it is available
-		return nil, fmt.Errorf("range not yet implmented")
+		re = append(re, &expr.Range{
+			Op:       expr.CmpOpNeq,
+			Register: 1,
+			FromData: fromAddr,
+			ToData:   toAddr,
+		})
+		return re, nil
 	}
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpGte,
@@ -245,8 +250,13 @@ func getExprForRangePort(l4proto int, offset uint32, port [2]*uint32, excl bool)
 		Data:     binaryutil.BigEndian.PutUint32(uint32(l4proto)),
 	})
 	if excl {
-		// Range case not yet implmented
-		return nil, fmt.Errorf("range not yet implemented")
+		re = append(re, &expr.Range{
+			Op:       expr.CmpOpNeq,
+			Register: 1,
+			FromData: binaryutil.BigEndian.PutUint16(uint16(*port[0])),
+			ToData:   binaryutil.BigEndian.PutUint16(uint16(*port[1])),
+		})
+		return re, nil
 	}
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpGte,
