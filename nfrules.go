@@ -146,7 +146,6 @@ func (ip *IPAddrSpec) Validate() error {
 	}
 	if len(ip.List) != 0 {
 		for i := 0; i < len(ip.List); i++ {
-			fmt.Printf("i: %d ip: %+v\n", i, ip.List[i])
 			if err := ip.List[i].Validate(); err != nil {
 				return err
 			}
@@ -154,7 +153,6 @@ func (ip *IPAddrSpec) Validate() error {
 	}
 	if ip.Range[0] != nil && ip.Range[1] != nil {
 		for i := 0; i < len(ip.Range); i++ {
-			fmt.Printf("i: %d ip: %+v\n", i, ip.Range[i])
 			if err := ip.Range[i].Validate(); err != nil {
 				return err
 			}

@@ -60,7 +60,7 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 		Offset:       offset,          // Offset ipv4 address in network header
 		Len:          uint32(addrLen), // length bytes for ipv4 address
 	})
-	var baddr []byte
+	var baddr, xor []byte
 	if l3proto == nftables.TableFamilyIPv4 {
 		baddr = swapBytes([]byte(addr.IP.To4()))
 	}
@@ -69,6 +69,23 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 	}
 	if len(baddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", addr.IP.String())
+	}
+	if addr.CIDR {
+		// Check specified subnet mask length so it would not exceed 32 for ipv4 and 128 for ipv6
+		if l3proto == nftables.TableFamilyIPv4 && *addr.Mask > uint8(32) {
+			return nil, fmt.Errorf("invalid mask length of %d for ipv4 address %s", *addr.Mask, addr.IP.String())
+		}
+		if l3proto == nftables.TableFamilyIPv6 && *addr.Mask > uint8(128) {
+			return nil, fmt.Errorf("invalid mask length of %d for ipv4 address %s", *addr.Mask, addr.IP.String())
+		}
+		xor = make([]byte, addrLen)
+		re = append(re, &expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            uint32(addrLen),
+			Mask:           buildMask(addrLen, *addr.Mask),
+			Xor:            xor,
+		})
 	}
 	op := expr.CmpOpEq
 	if excl {
@@ -269,4 +286,21 @@ func getExprForRangePort(l4proto int, offset uint32, port [2]*uint32, excl bool)
 	})
 
 	return re, nil
+}
+
+func buildMask(length int, maskLength uint8) []byte {
+	mask := make([]byte, length)
+	ff := maskLength / 8
+	f0 := maskLength % 8
+	for i := 0; i < int(ff); i++ {
+		mask[length-i-1] = 0xff
+	}
+	if f0 != 0 {
+		v := uint8(1)
+		for i := 0; i < int(f0); i++ {
+			mask[length-int(ff)-1] ^= v
+			v = (v << 1)
+		}
+	}
+	return mask
 }

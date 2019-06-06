@@ -12,8 +12,12 @@ import (
 )
 
 func TestMock(t *testing.T) {
-	ipv4Mask := uint8(33)
+	ipv4Mask := uint8(22)
 	ipv6Mask := uint8(64)
+	port1 := uint32(8080)
+	port2 := uint32(9090)
+	portRedirect := uint32(15001)
+
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -357,10 +361,6 @@ func TestMock(t *testing.T) {
 			success: true,
 		},
 	}
-
-	port1 := uint32(8080)
-	port2 := uint32(9090)
-	portRedirect := uint32(15001)
 
 	l4PortTests := []struct {
 		name    string

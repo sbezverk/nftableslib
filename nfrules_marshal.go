@@ -232,6 +232,35 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, '}')
 		return b, nil
 	}
+
+	if e, ok := exp.(*expr.Bitwise); ok {
+		b = append(b, []byte("{\"SourceRegister\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.SourceRegister))...)
+		b = append(b, []byte(",\"DestRegister\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.DestRegister))...)
+		b = append(b, []byte(",\"Len\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Len))...)
+		b = append(b, []byte(",\"Mask\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.Mask); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.Mask[i])...)
+			if i < len(e.Mask)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, []byte(",\"Xor\":")...)
+		b = append(b, '[')
+		for i := 0; i < len(e.Xor); i++ {
+			b = append(b, fmt.Sprintf("\"%#x\"", e.Xor[i])...)
+			if i < len(e.Xor)-1 {
+				b = append(b, ',')
+			}
+		}
+		b = append(b, ']')
+		b = append(b, '}')
+		return b, nil
+	}
 	/*
 		TODO: (sbezverk)
 			expr.Masq:
