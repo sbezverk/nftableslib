@@ -111,11 +111,23 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 
 // IPAddr defines a type of ip address, if it is host address with mask of 32 for ipv4 and mask of 128 for ipv6
 // then CIDR should be false, if it is a network address, then CIDR should be true and Mask set to a number of bits
-// in the address' mask. Mask value is from 0 to 31 for ipv4 and from 0 to 127 for ipv6 addresses.
+// in the address' mask. Mask value is from 0 to 32 for ipv4 and from 0 to 128 for ipv6 addresses.
 type IPAddr struct {
-	IP   *net.IPAddr
+	*net.IPAddr
 	CIDR bool
-	Mask *int8
+	Mask *uint8
+}
+
+// Validate checks validity of ip address and its parameters
+func (ip *IPAddr) Validate() error {
+	// If CIDR is not specified, there is nothing to validate
+	if !ip.CIDR {
+		return nil
+	}
+	if ip.CIDR && ip.Mask == nil {
+		return fmt.Errorf("mask length must be specified when CIDR is true")
+	}
+	return nil
 }
 
 // IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
@@ -124,13 +136,29 @@ type IPAddrSpec struct {
 	Range [2]*IPAddr
 }
 
-// Validate checks IPAddr struct
+// Validate checks IPAddrSpec struct
 func (ip *IPAddrSpec) Validate() error {
 	if len(ip.List) != 0 && (ip.Range[0] != nil || ip.Range[1] != nil) {
 		return fmt.Errorf("either List or Range but not both can be specified")
 	}
 	if len(ip.List) == 0 && (ip.Range[0] == nil || ip.Range[1] == nil) {
 		return fmt.Errorf("neither List nor Range is specified")
+	}
+	if len(ip.List) != 0 {
+		for i := 0; i < len(ip.List); i++ {
+			fmt.Printf("i: %d ip: %+v\n", i, ip.List[i])
+			if err := ip.List[i].Validate(); err != nil {
+				return err
+			}
+		}
+	}
+	if ip.Range[0] != nil && ip.Range[1] != nil {
+		for i := 0; i < len(ip.Range); i++ {
+			fmt.Printf("i: %d ip: %+v\n", i, ip.Range[i])
+			if err := ip.Range[i].Validate(); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -62,10 +62,10 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 	})
 	var baddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		baddr = swapBytes([]byte(addr.IP.IP.To4()))
+		baddr = swapBytes([]byte(addr.IP.To4()))
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		baddr = swapBytes([]byte(addr.IP.IP.To16()))
+		baddr = swapBytes([]byte(addr.IP.To16()))
 	}
 	if len(baddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", addr.IP.String())
@@ -124,12 +124,12 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAd
 	})
 	var fromAddr, toAddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		fromAddr = swapBytes([]byte(rng[0].IP.IP.To4()))
-		toAddr = swapBytes([]byte(rng[1].IP.IP.To4()))
+		fromAddr = swapBytes([]byte(rng[0].IP.To4()))
+		toAddr = swapBytes([]byte(rng[1].IP.To4()))
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		fromAddr = swapBytes([]byte(rng[0].IP.IP.To16()))
-		toAddr = swapBytes([]byte(rng[1].IP.IP.To16()))
+		fromAddr = swapBytes([]byte(rng[0].IP.To16()))
+		toAddr = swapBytes([]byte(rng[1].IP.To16()))
 	}
 	if len(fromAddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", rng[0].IP.String())

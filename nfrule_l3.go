@@ -63,12 +63,12 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	setElements := make([]nftables.SetElement, len(list))
 	if l3proto == nftables.TableFamilyIPv4 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.IP.To4())
+			setElements[i].Key = swapBytes(list[i].IP.To4())
 		}
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.IP.To16())
+			setElements[i].Key = swapBytes(list[i].IP.To16())
 		}
 	}
 	if len(setElements) == 0 {

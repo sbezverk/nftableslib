@@ -12,8 +12,8 @@ import (
 )
 
 func TestMock(t *testing.T) {
-	ipv4Mask := int8(24)
-	ipv6Mask := int8(64)
+	ipv4Mask := uint8(33)
+	ipv6Mask := uint8(64)
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -26,11 +26,11 @@ func TestMock(t *testing.T) {
 					Src: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.2.0"),
 								},
-								CIDR: true,
-								Mask: &ipv4Mask,
+								true,
+								&ipv4Mask,
 							},
 						},
 					},
@@ -49,9 +49,11 @@ func TestMock(t *testing.T) {
 					Src: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.2.1"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -70,9 +72,11 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.2.1"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -91,17 +95,23 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.2.1"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.3.1"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.4.1"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -120,17 +130,23 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.2.1"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.3.1"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("192.0.4.1"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -149,13 +165,17 @@ func TestMock(t *testing.T) {
 					Src: &nftableslib.IPAddrSpec{
 						Range: [2]*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("1.1.1.0"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2.2.2.0"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -180,9 +200,11 @@ func TestMock(t *testing.T) {
 					Src: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:0101::1"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -201,11 +223,11 @@ func TestMock(t *testing.T) {
 					Src: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:0101::"),
 								},
-								CIDR: true,
-								Mask: &ipv6Mask,
+								true,
+								&ipv6Mask,
 							},
 						},
 					},
@@ -224,9 +246,11 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -245,13 +269,17 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:0101::1"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -270,17 +298,23 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:470:b87e:81::11"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("fe80::5054:ff:fe6c:1c4d"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
@@ -299,13 +333,17 @@ func TestMock(t *testing.T) {
 					Dst: &nftableslib.IPAddrSpec{
 						Range: [2]*nftableslib.IPAddr{
 							{
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:470:b87e:81::11"),
 								},
+								false,
+								nil,
 							}, {
-								IP: &net.IPAddr{
+								&net.IPAddr{
 									IP: net.ParseIP("2001:470:b87e:89::11"),
 								},
+								false,
+								nil,
 							},
 						},
 					},
