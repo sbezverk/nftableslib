@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/google/nftables"
@@ -33,36 +34,48 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("Programming chain succeeded.\n")
-	port2 := uint32(8989)
+	port1 := uint32(8182)
 	// rule1Mask := uint8(25)
 	rule1 := nftableslib.Rule{
-		/*		L3: &nftableslib.L3Rule{
-				Dst: &nftableslib.IPAddrSpec{
-					List: []*nftableslib.IPAddr{
-						{
-							&net.IPAddr{
-								IP: net.ParseIP("192.168.20.0"),
-							},
-							false,
-							nil, // &rule1Mask,
+		L3: &nftableslib.L3Rule{
+			Dst: &nftableslib.IPAddrSpec{
+				List: []*nftableslib.IPAddr{
+					{
+						&net.IPAddr{
+							IP: net.ParseIP("192.168.20.1"),
 						},
+						false,
+						nil, // &rule1Mask,
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
-			}, */
+			},
+			Verdict: &expr.Verdict{
+				Kind: expr.VerdictKind(unix.NFT_JUMP),
+			},
+		},
+	}
+
+	rule2 := nftableslib.Rule{
 		L4: &nftableslib.L4Rule{
-			L4Proto: unix.IPPROTO_UDP,
+			L4Proto: unix.IPPROTO_TCP,
 			Src: &nftableslib.Port{
 				List: []*uint32{
-					&port2,
+					&port1,
 				},
 			},
 			Verdict: &expr.Verdict{
 				Kind: expr.VerdictKind(unix.NFT_RETURN),
 			},
 		},
+	}
+	if err := ti.Tables().Table("ipv4table", nftables.TableFamilyIPv4).Chains().Chain("ipv4chain-1").Rules().Create("ipv4rule-2", &rule2); err != nil {
+		fmt.Printf("failed to create chain with error: %+v, exiting...\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Programming nftable...\n")
+	if err := conn.Flush(); err != nil {
+		fmt.Printf("Failed to programm nftable with error: %+v\n", err)
+		os.Exit(1)
 	}
 	if err := ti.Tables().Table("ipv4table", nftables.TableFamilyIPv4).Chains().Chain("ipv4chain-1").Rules().Create("ipv4rule-1", &rule1); err != nil {
 		fmt.Printf("failed to create chain with error: %+v, exiting...\n", err)
