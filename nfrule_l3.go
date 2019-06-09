@@ -8,6 +8,9 @@ import (
 )
 
 func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+	if rule.Version != nil {
+		return processVersion(*rule.Version, rule.Exclude, rule.Verdict)
+	}
 	// IPv4 source address offset - 12, destination address offset - 16
 	// IPv6 source address offset - 8, destination address offset - 24
 	var ruleAddr *IPAddrSpec
@@ -88,6 +91,17 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 
 func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
 	re, err := getExprForRangeIP(l3proto, offset, rng, excl)
+	if err != nil {
+		return nil, nil, err
+	}
+	re = append(re, verdict)
+	return &nftables.Rule{
+		Exprs: re,
+	}, nil, nil
+}
+
+func processVersion(version uint32, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+	re, err := getExprForIPVersion(version, excl)
 	if err != nil {
 		return nil, nil, err
 	}

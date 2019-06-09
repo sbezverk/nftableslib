@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 
 	"github.com/google/nftables"
@@ -35,20 +34,33 @@ func main() {
 	}
 	fmt.Printf("Programming chain succeeded.\n")
 	port1 := uint32(8182)
+	ver := uint32(0x00000040)
 	// rule1Mask := uint8(25)
 	rule1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
 			Dst: &nftableslib.IPAddrSpec{
-				List: []*nftableslib.IPAddr{
-					{
-						&net.IPAddr{
-							IP: net.ParseIP("192.168.20.1"),
+				/*
+						List: []*nftableslib.IPAddr{
+							{
+								&net.IPAddr{
+									IP: net.ParseIP("192.168.20.1"),
+								},
+								false,
+								nil, // &rule1Mask,
+							},
+							{
+								&net.IPAddr{
+									IP: net.ParseIP("192.168.30.1"),
+								},
+								false,
+								nil, // &rule1Mask,
+							},
 						},
-						false,
-						nil, // &rule1Mask,
 					},
-				},
+				*/
+
 			},
+			Version: &ver,
 			Verdict: &expr.Verdict{
 				Kind: expr.VerdictKind(unix.NFT_JUMP),
 			},

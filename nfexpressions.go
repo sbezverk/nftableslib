@@ -289,6 +289,34 @@ func getExprForRangePort(l4proto int, offset uint32, port [2]*uint32, excl bool)
 	return re, nil
 }
 
+func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
+	re := []expr.Any{}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       0, // Offset for a transport protocol header
+		Len:          1, // 2 bytes for port
+	})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.NativeEndian.PutUint32(version),
+	})
+	if excl {
+		// TODO
+		return re, nil
+	}
+	re = append(re, &expr.Bitwise{
+		SourceRegister: 1,
+		DestRegister:   1,
+		Len:            4,
+		Mask:           binaryutil.NativeEndian.PutUint32(uint32(0x000000f0)),
+		Xor:            binaryutil.NativeEndian.PutUint32(uint32(0x00000000)),
+	})
+
+	return re, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	ff := maskLength / 8

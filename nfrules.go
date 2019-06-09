@@ -163,8 +163,10 @@ func (ip *IPAddrSpec) Validate() error {
 
 // L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
 type L3Rule struct {
-	Src     *IPAddrSpec
-	Dst     *IPAddrSpec
+	Src *IPAddrSpec
+	Dst *IPAddrSpec
+	// TODO Add validation
+	Version *uint32
 	Exclude bool
 	Verdict *expr.Verdict
 }
