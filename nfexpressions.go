@@ -297,11 +297,6 @@ func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
 		Offset:       0, // Offset for a transport protocol header
 		Len:          1, // 2 bytes for port
 	})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(version),
-	})
 	if excl {
 		// TODO
 		return re, nil
@@ -312,6 +307,12 @@ func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
 		Len:            4,
 		Mask:           binaryutil.NativeEndian.PutUint32(uint32(0x000000f0)),
 		Xor:            binaryutil.NativeEndian.PutUint32(uint32(0x00000000)),
+	})
+
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.NativeEndian.PutUint32(version),
 	})
 
 	return re, nil
