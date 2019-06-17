@@ -12,7 +12,7 @@ import (
 )
 
 func TestMock(t *testing.T) {
-	ipv4Mask := uint8(22)
+	ipv4Mask := uint8(12)
 	ipv6Mask := uint8(64)
 	port1 := uint32(8080)
 	port2 := uint32(9090)

@@ -37,15 +37,6 @@ func outputIntfByName(intf string) []expr.Any {
 	}
 }
 
-func swapBytes(addr []byte) []byte {
-	l := len(addr)
-	r := make([]byte, l)
-	for i := 0; i < len(addr); i++ {
-		r[l-1-i] = addr[i]
-	}
-	return r
-}
-
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
 func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
@@ -62,10 +53,10 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 	})
 	var baddr, xor []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		baddr = swapBytes([]byte(addr.IP.To4()))
+		baddr = []byte(addr.IP.To4())
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		baddr = swapBytes([]byte(addr.IP.To16()))
+		baddr = []byte(addr.IP.To16())
 	}
 	if len(baddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", addr.IP.String())
@@ -141,12 +132,12 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAd
 	})
 	var fromAddr, toAddr []byte
 	if l3proto == nftables.TableFamilyIPv4 {
-		fromAddr = swapBytes([]byte(rng[0].IP.To4()))
-		toAddr = swapBytes([]byte(rng[1].IP.To4()))
+		fromAddr = []byte(rng[0].IP.To4())
+		toAddr = []byte(rng[1].IP.To4())
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
-		fromAddr = swapBytes([]byte(rng[0].IP.To16()))
-		toAddr = swapBytes([]byte(rng[1].IP.To16()))
+		fromAddr = []byte(rng[0].IP.To16())
+		toAddr = []byte(rng[1].IP.To16())
 	}
 	if len(fromAddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", rng[0].IP.String())
@@ -320,15 +311,18 @@ func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
 
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
-	ff := maskLength / 8
-	f0 := maskLength % 8
-	for i := 0; i < int(ff); i++ {
+	fullBytes := maskLength / 8
+	leftBits := maskLength % 8
+	for i := 0; i < int(fullBytes); i++ {
+		mask[i] = 0x00
+	}
+	for i := 0; i < (length-int(fullBytes))-1; i++ {
 		mask[length-i-1] = 0xff
 	}
-	if f0 != 0 {
+	if fullBytes != 0 {
 		v := uint8(1)
-		for i := 0; i < int(f0); i++ {
-			mask[length-int(ff)-1] ^= v
+		for i := 0; i < 8-int(leftBits); i++ {
+			mask[fullBytes] ^= v
 			v = (v << 1)
 		}
 	}

@@ -75,6 +75,7 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	if len(se) != 0 {
 		nfr.conn.AddSet(&set, se)
 	}
+	fmt.Printf("rule: %+v\n", r)
 	nfr.conn.AddRule(r)
 	nfr.rules[name] = &nfRule{
 		rule: r,
@@ -179,9 +180,9 @@ func (l3 *L3Rule) Validate() error {
 	if l3.Src == nil && l3.Dst == nil && l3.Version == nil {
 		return fmt.Errorf("neither L3 Src nor L3 Dst is specified")
 	}
-	if l3.Verdict == nil {
-		return fmt.Errorf("L3 does not have Verdict specified")
-	}
+	//	if l3.Verdict == nil {
+	//		return fmt.Errorf("L3 does not have Verdict specified")
+	//	}
 	if l3.Src != nil {
 		if err := l3.Src.Validate(); err != nil {
 			return err

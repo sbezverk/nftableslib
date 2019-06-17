@@ -57,7 +57,9 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 		if err != nil {
 			return nil, nil, err
 		}
-		expr = append(expr, verdict)
+		if verdict != nil {
+			expr = append(expr, verdict)
+		}
 		return &nftables.Rule{
 			Exprs: expr,
 		}, nil, nil
@@ -66,12 +68,12 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	setElements := make([]nftables.SetElement, len(list))
 	if l3proto == nftables.TableFamilyIPv4 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.To4())
+			setElements[i].Key = list[i].IP.To4()
 		}
 	}
 	if l3proto == nftables.TableFamilyIPv6 {
 		for i := 0; i < len(list); i++ {
-			setElements[i].Key = swapBytes(list[i].IP.To16())
+			setElements[i].Key = list[i].IP.To16()
 		}
 	}
 	if len(setElements) == 0 {
@@ -82,8 +84,9 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	if err != nil {
 		return nil, nil, err
 	}
-	re = append(re, verdict)
-
+	if verdict != nil {
+		re = append(re, verdict)
+	}
 	return &nftables.Rule{
 		Exprs: re,
 	}, setElements, nil
@@ -94,7 +97,9 @@ func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAdd
 	if err != nil {
 		return nil, nil, err
 	}
-	re = append(re, verdict)
+	if verdict != nil {
+		re = append(re, verdict)
+	}
 	return &nftables.Rule{
 		Exprs: re,
 	}, nil, nil
@@ -105,7 +110,9 @@ func processVersion(version uint32, excl bool, verdict *expr.Verdict) (*nftables
 	if err != nil {
 		return nil, nil, err
 	}
-	re = append(re, verdict)
+	if verdict != nil {
+		re = append(re, verdict)
+	}
 	return &nftables.Rule{
 		Exprs: re,
 	}, nil, nil
