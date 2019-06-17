@@ -38,8 +38,8 @@ func main() {
 	// rule1Mask := uint8(25)
 	rule1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
-			Dst: &nftableslib.IPAddrSpec{
-				/*
+			/* Dst: &nftableslib.IPAddrSpec{
+
 						List: []*nftableslib.IPAddr{
 							{
 								&net.IPAddr{
@@ -57,9 +57,8 @@ func main() {
 							},
 						},
 					},
-				*/
 
-			},
+			}, */
 			Version: &ver,
 			Verdict: &expr.Verdict{
 				Kind: expr.VerdictKind(unix.NFT_JUMP),

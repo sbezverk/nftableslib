@@ -176,8 +176,8 @@ func (l3 *L3Rule) Validate() error {
 	if l3.Src != nil && l3.Dst != nil {
 		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
 	}
-	if l3.Src == nil && l3.Dst == nil {
-		return fmt.Errorf("neither L3 Src nor L3 is specified")
+	if l3.Src == nil && l3.Dst == nil && l3.Version == nil {
+		return fmt.Errorf("neither L3 Src nor L3 Dst is specified")
 	}
 	if l3.Verdict == nil {
 		return fmt.Errorf("L3 does not have Verdict specified")
