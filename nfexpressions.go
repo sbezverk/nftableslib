@@ -92,7 +92,7 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 }
 
 // getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
-func getExprForListIP(l3proto nftables.TableFamily, set nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
+func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -219,7 +219,7 @@ func getExprForSinglePort(l4proto int, offset uint32, port []*uint32, excl bool)
 	return re, nil
 }
 
-func getExprForListPort(l4proto int, offset uint32, port []*uint32, excl bool, set nftables.Set) ([]expr.Any, error) {
+func getExprForListPort(l4proto int, offset uint32, port []*uint32, excl bool, set *nftables.Set) ([]expr.Any, error) {
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}

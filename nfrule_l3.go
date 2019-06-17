@@ -7,7 +7,7 @@ import (
 	"github.com/google/nftables/expr"
 )
 
-func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func createL3(l3proto nftables.TableFamily, rule *L3Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if rule.Version != nil {
 		return processVersion(*rule.Version, rule.Exclude, rule.Verdict)
 	}
@@ -20,8 +20,10 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nf
 		switch l3proto {
 		case nftables.TableFamilyIPv4:
 			addrOffset = 12
+			set.KeyType = nftables.TypeIPAddr
 		case nftables.TableFamilyIPv6:
 			addrOffset = 8
+			set.KeyType = nftables.TypeIP6Addr
 		default:
 			return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 		}
@@ -31,8 +33,10 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nf
 		switch l3proto {
 		case nftables.TableFamilyIPv4:
 			addrOffset = 16
+			set.KeyType = nftables.TypeIPAddr
 		case nftables.TableFamilyIPv6:
 			addrOffset = 24
+			set.KeyType = nftables.TypeIP6Addr
 		default:
 			return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 		}
@@ -50,7 +54,7 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set nftables.Set) (*nf
 }
 
 func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr,
-	excl bool, verdict *expr.Verdict, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+	excl bool, verdict *expr.Verdict, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(list) == 1 {
 		// Special case with a single entry in the list, as a result it does not require to build SetElement
 		expr, err := getExprForSingleIP(l3proto, offset, list[0], excl)

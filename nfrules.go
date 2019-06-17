@@ -49,17 +49,16 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		Constant:  true,
 		Name:      name,
 		ID:        uint32(rand.Intn(0xffff)),
-		KeyType:   nftables.TypeInetService,
 		Table:     nfr.table,
 	}
 	var r *nftables.Rule
 	var se []nftables.SetElement
 	var err error
 	if rule.L3 != nil {
-		r, se, err = createL3(nfr.table.Family, rule.L3, set)
+		r, se, err = createL3(nfr.table.Family, rule.L3, &set)
 	}
 	if rule.L4 != nil {
-		r, se, err = createL4(rule.L4, set)
+		r, se, err = createL4(rule.L4, &set)
 	}
 	if err != nil {
 		return err
@@ -73,9 +72,10 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		delete(nfr.rules, name)
 	}
 	if len(se) != 0 {
-		nfr.conn.AddSet(&set, se)
+		if err := nfr.conn.AddSet(&set, se); err != nil {
+			return err
+		}
 	}
-	fmt.Printf("rule: %+v\n", r)
 	nfr.conn.AddRule(r)
 	nfr.rules[name] = &nfRule{
 		rule: r,

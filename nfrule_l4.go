@@ -9,7 +9,7 @@ import (
 	"github.com/google/nftables"
 )
 
-func createL4(rule *L4Rule, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func createL4(rule *L4Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	var rulePort *Port
 	var offset uint32
 
@@ -34,7 +34,7 @@ func createL4(rule *L4Rule, set nftables.Set) (*nftables.Rule, []nftables.SetEle
 	return nil, nil, fmt.Errorf("both verdict and redirect are nil")
 }
 
-func processPortRedirect(l4proto int, offset uint32, port *Port, redirect uint32, excl bool, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processPortRedirect(l4proto int, offset uint32, port *Port, redirect uint32, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(port.List) != 0 {
 		re, se, err := processPortList(l4proto, offset, port.List, excl, set)
 		if err != nil {
@@ -59,7 +59,7 @@ func processPortRedirect(l4proto int, offset uint32, port *Port, redirect uint32
 	return nil, nil, fmt.Errorf("both port list and port range are nil")
 }
 
-func processL4Port(l4proto int, offset uint32, port *Port, exclude bool, verdict *expr.Verdict, set nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processL4Port(l4proto int, offset uint32, port *Port, exclude bool, verdict *expr.Verdict, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(port.List) != 0 {
 		re, se, err := processPortList(l4proto, offset, port.List, exclude, set)
 		if err != nil {
@@ -84,7 +84,7 @@ func processL4Port(l4proto int, offset uint32, port *Port, exclude bool, verdict
 	return nil, nil, fmt.Errorf("both port list and port range are nil")
 }
 
-func processPortList(l4proto int, offset uint32, port []*uint32, excl bool, set nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
+func processPortList(l4proto int, offset uint32, port []*uint32, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
 	// Processing special case of 1 port in the list
 	if len(port) == 1 {
 		re := []expr.Any{}
