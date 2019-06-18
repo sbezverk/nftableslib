@@ -613,21 +613,33 @@ func TestMock(t *testing.T) {
 	}
 	m := InitMockConn()
 	m.ti.Tables().Create("filter-v4", nftables.TableFamilyIPv4)
-	m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Create(
+	tblV4, err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4)
+	if err != nil {
+		t.Fatalf("failed to get chain interface for table filter-v4")
+	}
+	tblV4.Chains().Create(
 		"chain-1-v4",
 		nftables.ChainHookInput,
 		nftables.ChainPriorityFilter,
 		nftables.ChainTypeFilter)
 
 	m.ti.Tables().Create("filter-v6", nftables.TableFamilyIPv6)
-	m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6).Chains().Create(
+	tblV6, err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6)
+	if err != nil {
+		t.Fatalf("failed to get chain interface for table filter-v6")
+	}
+	tblV6.Chains().Create(
 		"chain-1-v6",
 		nftables.ChainHookInput,
 		nftables.ChainPriorityFilter,
 		nftables.ChainTypeFilter)
 
 	for i, tt := range ipv4Tests {
-		err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		ri, err := tblV4.Chains().Chain("chain-1-v4")
+		if err != nil {
+			t.Fatalf("failed to get rules interface for chain chain-1-v4")
+		}
+		err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -637,7 +649,11 @@ func TestMock(t *testing.T) {
 	}
 
 	for i, tt := range ipv6Tests {
-		err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6).Chains().Chain("chain-1-v6").Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
+		ri, err := tblV6.Chains().Chain("chain-1-v6")
+		if err != nil {
+			t.Fatalf("failed to get rules interface for chain chain-1-v6")
+		}
+		err = ri.Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -647,7 +663,11 @@ func TestMock(t *testing.T) {
 	}
 
 	for i, tt := range l4PortTests {
-		err := m.ti.Tables().Table("filter-v4", nftables.TableFamilyIPv4).Chains().Chain("chain-1-v4").Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		ri, err := tblV4.Chains().Chain("chain-1-v4")
+		if err != nil {
+			t.Fatalf("failed to get rules interface for chain chain-1-v4")
+		}
+		err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}

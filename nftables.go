@@ -26,7 +26,7 @@ type TablesInterface interface {
 
 // TableFuncs defines second level interface operating with nf tables
 type TableFuncs interface {
-	Table(name string, familyType nftables.TableFamily) ChainsInterface
+	Table(name string, familyType nftables.TableFamily) (ChainsInterface, error)
 	Create(name string, familyType nftables.TableFamily)
 	Delete(name string, familyType nftables.TableFamily)
 	Exist(name string, familyType nftables.TableFamily) bool
@@ -72,18 +72,16 @@ func (nft *nfTables) Tables() TableFuncs {
 }
 
 // Table returns Chains Interface for a specific table
-func (nft *nfTables) Table(name string, familyType nftables.TableFamily) ChainsInterface {
+func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (ChainsInterface, error) {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
 	if t, ok := nft.tables[familyType][name]; ok {
-		return t.ChainsInterface
+		return t.ChainsInterface, nil
 
 	}
-	// If a table does not exist, creating it and return Chains Interface to newly created table
-	nft.Create(name, familyType)
-	t, _ := nft.tables[familyType][name]
-	return t.ChainsInterface
+
+	return nil, fmt.Errorf("table %s of type %v does not exist")
 }
 
 // Create appends a table into NF tables list

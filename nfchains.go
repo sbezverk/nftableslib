@@ -2,6 +2,7 @@ package nftableslib
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/google/nftables"
@@ -14,7 +15,7 @@ type ChainsInterface interface {
 
 // ChainFuncs defines funcations to operate with chains
 type ChainFuncs interface {
-	Chain(name string) RulesInterface
+	Chain(name string) (RulesInterface, error)
 	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType)
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
@@ -34,8 +35,15 @@ type nfChain struct {
 }
 
 // Chain return Rules Interface for a specified chain
-func (nfc *nfChains) Chain(name string) RulesInterface {
-	return nfc.chains[name].RulesInterface
+func (nfc *nfChains) Chain(name string) (RulesInterface, error) {
+	nfc.Lock()
+	defer nfc.Unlock()
+	// Check if nf table with the same family type and name  already exists
+	if c, ok := nfc.chains[name]; ok {
+		return c.RulesInterface, nil
+
+	}
+	return nil, fmt.Errorf("chain %s does not exist", name)
 }
 
 // Chains return a list of methods available for Chain operations

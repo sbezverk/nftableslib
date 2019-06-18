@@ -13,7 +13,11 @@ func TestChains(t *testing.T) {
 	}
 	nft := InitNFTables(conn)
 	nft.Tables().Create("test", nftables.TableFamilyIPv4)
-	nft.Tables().Table("test", nftables.TableFamilyIPv4).Chains().Create(
+	tbl, err := nft.Tables().Table("test", nftables.TableFamilyIPv4)
+	if err != nil {
+		t.Fatalf("failed to get chain interface for table test of type nftables.TableFamilyIPv4")
+	}
+	tbl.Chains().Create(
 		"chain-1",
 		nftables.ChainHookInput,
 		nftables.ChainPriorityFilter,
