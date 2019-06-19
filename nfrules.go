@@ -71,16 +71,14 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	if _, ok := nfr.rules[name]; ok {
 		delete(nfr.rules, name)
 	}
+	nfr.rules[name] = &nfRule{}
 	if len(se) != 0 {
 		if err := nfr.conn.AddSet(&set, se); err != nil {
 			return err
 		}
+		nfr.rules[name].set = &set
 	}
-	nfr.conn.AddRule(r)
-	nfr.rules[name] = &nfRule{
-		rule: r,
-		set:  &set,
-	}
+	nfr.rules[name].rule = nfr.conn.AddRule(r)
 
 	return nil
 }

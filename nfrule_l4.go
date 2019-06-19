@@ -13,6 +13,7 @@ func createL4(rule *L4Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetEl
 	var rulePort *Port
 	var offset uint32
 
+	set.KeyType = nftables.TypeInetService
 	if rule.Src != nil {
 		rulePort = rule.Src
 		offset = 0
@@ -96,7 +97,7 @@ func processPortList(l4proto int, offset uint32, port []*uint32, excl bool, set 
 	}
 	// Processing multiple ports case
 	re := []expr.Any{}
-	setElements := make([]nftables.SetElement, len(port))
+	setElements := make([]nftables.SetElement, 0)
 	for _, p := range port {
 		setElements = append(setElements,
 			nftables.SetElement{
