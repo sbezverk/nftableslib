@@ -197,8 +197,8 @@ func (l3 *L3Rule) Validate() error {
 
 // Port lists possible flavours of specifying port information
 type Port struct {
-	List  []*uint32
-	Range [2]*uint32
+	List  []*uint16
+	Range [2]*uint16
 }
 
 // Validate check parameters of Port struct
@@ -220,7 +220,7 @@ type L4Rule struct {
 	Dst     *Port
 	// TODO Does validation needed for Exclude?
 	Exclude  bool
-	Redirect *uint32
+	Redirect *uint16
 	Verdict  *expr.Verdict
 }
 
