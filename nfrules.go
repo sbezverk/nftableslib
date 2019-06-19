@@ -215,7 +215,7 @@ func (p *Port) Validate() error {
 
 // L4Rule contains parameters for L4 based rule
 type L4Rule struct {
-	L4Proto int
+	L4Proto uint8
 	Src     *Port
 	Dst     *Port
 	// TODO Does validation needed for Exclude?

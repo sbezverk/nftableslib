@@ -187,7 +187,7 @@ func getExprForRedirectPort(portToRedirect uint16) []expr.Any {
 	return re
 }
 
-func getExprForSinglePort(l4proto int, offset uint32, port []*uint16, excl bool) ([]expr.Any, error) {
+func getExprForSinglePort(l4proto uint8, offset uint32, port []*uint16, excl bool) ([]expr.Any, error) {
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}
@@ -197,7 +197,7 @@ func getExprForSinglePort(l4proto int, offset uint32, port []*uint16, excl bool)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(uint32(l4proto)),
+		Data:     []byte{l4proto},
 	})
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
@@ -218,7 +218,7 @@ func getExprForSinglePort(l4proto int, offset uint32, port []*uint16, excl bool)
 	return re, nil
 }
 
-func getExprForListPort(l4proto int, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, error) {
+func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, error) {
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}
@@ -227,7 +227,7 @@ func getExprForListPort(l4proto int, offset uint32, port []*uint16, excl bool, s
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(uint32(l4proto)),
+		Data:     []byte{l4proto},
 	})
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
@@ -245,7 +245,7 @@ func getExprForListPort(l4proto int, offset uint32, port []*uint16, excl bool, s
 	return re, nil
 }
 
-func getExprForRangePort(l4proto int, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, error) {
+func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, error) {
 	// [ meta load l4proto => reg 1 ]
 	// [ cmp eq reg 1 0x00000006 ]
 	// [ payload load 2b @ transport header + 0 => reg 1 ]
@@ -260,7 +260,7 @@ func getExprForRangePort(l4proto int, offset uint32, port [2]*uint16, excl bool)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(uint32(l4proto)),
+		Data:     []byte{l4proto},
 	})
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
@@ -297,7 +297,7 @@ func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
 		DestRegister: 1,
 		Base:         expr.PayloadBaseTransportHeader,
 		Offset:       0, // Offset for a transport protocol header
-		Len:          1, // 2 bytes for port
+		Len:          1, // 1 byte for IP version
 	})
 	if excl {
 		// TODO

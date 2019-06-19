@@ -35,7 +35,7 @@ func createL4(rule *L4Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetEl
 	return nil, nil, fmt.Errorf("both verdict and redirect are nil")
 }
 
-func processPortRedirect(l4proto int, offset uint32, port *Port, redirect uint16, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processPortRedirect(l4proto uint8, offset uint32, port *Port, redirect uint16, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(port.List) != 0 {
 		re, se, err := processPortList(l4proto, offset, port.List, excl, set)
 		if err != nil {
@@ -60,7 +60,7 @@ func processPortRedirect(l4proto int, offset uint32, port *Port, redirect uint16
 	return nil, nil, fmt.Errorf("both port list and port range are nil")
 }
 
-func processL4Port(l4proto int, offset uint32, port *Port, exclude bool, verdict *expr.Verdict, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, verdict *expr.Verdict, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(port.List) != 0 {
 		re, se, err := processPortList(l4proto, offset, port.List, exclude, set)
 		if err != nil {
@@ -85,7 +85,7 @@ func processL4Port(l4proto int, offset uint32, port *Port, exclude bool, verdict
 	return nil, nil, fmt.Errorf("both port list and port range are nil")
 }
 
-func processPortList(l4proto int, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
+func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
 	// Processing special case of 1 port in the list
 	if len(port) == 1 {
 		re := []expr.Any{}
@@ -112,7 +112,7 @@ func processPortList(l4proto int, offset uint32, port []*uint16, excl bool, set 
 	return re, setElements, nil
 }
 
-func processPortRange(l4proto int, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, []nftables.SetElement, error) {
+func processPortRange(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, []nftables.SetElement, error) {
 	re, err := getExprForRangePort(l4proto, offset, port, excl)
 	if err != nil {
 		return nil, nil, err
