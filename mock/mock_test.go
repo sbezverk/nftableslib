@@ -14,9 +14,10 @@ import (
 func TestMock(t *testing.T) {
 	ipv4Mask := uint8(12)
 	ipv6Mask := uint8(64)
-	port1 := uint32(8080)
-	port2 := uint32(9090)
-	portRedirect := uint32(15001)
+	port1 := uint16(8080)
+	port2 := uint16(9090)
+	port3 := uint16(8989)
+	portRedirect := uint16(15001)
 
 	ipv4Tests := []struct {
 		name    string
@@ -373,7 +374,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Src: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 						},
 					},
@@ -391,7 +392,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_UDP,
 					Src: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port2,
 						},
 					},
@@ -408,7 +409,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 						},
 					},
@@ -426,7 +427,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Src: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 						},
 					},
@@ -441,7 +442,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_UDP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 						},
 					},
@@ -456,7 +457,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 						},
 					},
@@ -472,9 +473,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 							&port2,
+							&port3,
 						},
 					},
 					Redirect: &portRedirect,
@@ -489,7 +491,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 							&port2,
 						},
@@ -508,7 +510,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 							&port2,
 						},
@@ -525,7 +527,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint32{
+						List: []*uint16{
 							&port1,
 							&port2,
 						},
@@ -544,7 +546,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint32{
+						Range: [2]*uint16{
 							&port1,
 							&port2,
 						},
@@ -561,7 +563,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint32{
+						Range: [2]*uint16{
 							&port1,
 							&port2,
 						},
@@ -580,7 +582,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint32{
+						Range: [2]*uint16{
 							&port1,
 							&port2,
 						},
@@ -597,7 +599,7 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint32{
+						Range: [2]*uint16{
 							&port1,
 							&port2,
 						},

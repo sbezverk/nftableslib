@@ -13,10 +13,29 @@ type ChainsInterface interface {
 	Chains() ChainFuncs
 }
 
+// ChainPolicy defines type for chain policies
+type ChainPolicy string
+
+const (
+	// ChainPolicyAccept defines "accept" chain policy
+	ChainPolicyAccept ChainPolicy = "accept"
+	// ChainPolicyDrop defines "drop" chain policy
+	ChainPolicyDrop ChainPolicy = "drop"
+)
+
+// ChainAttributes defines attributes which can be apply to a chain of BASE type
+type ChainAttributes struct {
+	Type     nftables.ChainType
+	Hook     nftables.ChainHook
+	Priority nftables.ChainPriority
+	Device   string
+	Policy   ChainPolicy
+}
+
 // ChainFuncs defines funcations to operate with chains
 type ChainFuncs interface {
 	Chain(name string) (RulesInterface, error)
-	Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType)
+	Create(name string, attributes *ChainAttributes)
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
 }
@@ -29,7 +48,7 @@ type nfChains struct {
 }
 
 type nfChain struct {
-	chainType nftables.ChainType
+	baseChain bool
 	chain     *nftables.Chain
 	RulesInterface
 }
@@ -51,22 +70,33 @@ func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) Create(name string, hookNum nftables.ChainHook, priority nftables.ChainPriority, chainType nftables.ChainType) {
+func (nfc *nfChains) Create(name string, attributes *ChainAttributes) {
 	nfc.Lock()
 	defer nfc.Unlock()
 	if _, ok := nfc.chains[name]; ok {
 		delete(nfc.chains, name)
 	}
-	c := nfc.conn.AddChain(&nftables.Chain{
-		Name:     name,
-		Hooknum:  hookNum,
-		Priority: priority,
-		Table:    nfc.table,
-		Type:     chainType,
-	})
+	var baseChain bool
+	var c *nftables.Chain
+	if attributes != nil {
+		baseChain = true
+		c = nfc.conn.AddChain(&nftables.Chain{
+			Name:     name,
+			Hooknum:  attributes.Hook,
+			Priority: attributes.Priority,
+			Table:    nfc.table,
+			Type:     attributes.Type,
+		})
+	} else {
+		baseChain = false
+		c = nfc.conn.AddChain(&nftables.Chain{
+			Name:  name,
+			Table: nfc.table,
+		})
+	}
 	nfc.chains[name] = &nfChain{
 		chain:          c,
-		chainType:      chainType,
+		baseChain:      baseChain,
 		RulesInterface: newRules(nfc.conn, nfc.table, c),
 	}
 }

@@ -76,6 +76,7 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		if err := nfr.conn.AddSet(&set, se); err != nil {
 			return err
 		}
+		set.DataLen = len(se)
 		nfr.rules[name].set = &set
 	}
 	nfr.rules[name].rule = nfr.conn.AddRule(r)

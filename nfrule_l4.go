@@ -86,24 +86,14 @@ func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, verdi
 }
 
 func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
-	// Processing special case of 1 port in the list
-	if len(port) == 1 {
-		re := []expr.Any{}
-		re, err := getExprForSinglePort(l4proto, offset, port, excl)
-		if err != nil {
-			return nil, nil, err
-		}
-		return re, nil, nil
-	}
 	// Processing multiple ports case
 	re := []expr.Any{}
-	setElements := make([]nftables.SetElement, 0)
-	for _, p := range port {
-		setElements = append(setElements,
-			nftables.SetElement{
-				Key: binaryutil.BigEndian.PutUint16(uint16(*p)),
-			})
+	// Normal case, more than 1 entry in the port list need to build SetElement slice
+	setElements := make([]nftables.SetElement, len(port))
+	for i := 0; i < len(port); i++ {
+		setElements[i].Key = binaryutil.BigEndian.PutUint16(*port[i])
 	}
+
 	re, err := getExprForListPort(l4proto, offset, port, excl, set)
 	if err != nil {
 		return nil, nil, err
