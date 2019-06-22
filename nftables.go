@@ -81,7 +81,7 @@ func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (Chains
 
 	}
 
-	return nil, fmt.Errorf("table %s of type %v does not exist")
+	return nil, fmt.Errorf("table %s of type %v does not exist", name, familyType)
 }
 
 // Create appends a table into NF tables list

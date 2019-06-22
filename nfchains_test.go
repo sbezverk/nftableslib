@@ -17,9 +17,10 @@ func TestChains(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get chain interface for table test of type nftables.TableFamilyIPv4")
 	}
-	tbl.Chains().Create(
-		"chain-1",
-		nftables.ChainHookInput,
-		nftables.ChainPriorityFilter,
-		nftables.ChainTypeFilter)
+	chAttribs := ChainAttributes{
+		Hook:     nftables.ChainHookInput,
+		Priority: nftables.ChainPriorityFilter,
+		Type:     nftables.ChainTypeFilter,
+	}
+	tbl.Chains().Create("chain-1", &chAttribs)
 }
