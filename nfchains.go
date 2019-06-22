@@ -32,10 +32,20 @@ type ChainAttributes struct {
 	Policy   ChainPolicy
 }
 
+// Validate validate attributes passed for a base chain creation
+func (cha *ChainAttributes) Validate() error {
+	if cha.Type == "" {
+		return fmt.Errorf("base chain must have type set")
+	}
+	// TODO Add additional attributes validation
+
+	return nil
+}
+
 // ChainFuncs defines funcations to operate with chains
 type ChainFuncs interface {
 	Chain(name string) (RulesInterface, error)
-	Create(name string, attributes *ChainAttributes)
+	Create(name string, attributes *ChainAttributes) error
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
 }
@@ -70,7 +80,7 @@ func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) Create(name string, attributes *ChainAttributes) {
+func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 	nfc.Lock()
 	defer nfc.Unlock()
 	if _, ok := nfc.chains[name]; ok {
@@ -79,6 +89,9 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) {
 	var baseChain bool
 	var c *nftables.Chain
 	if attributes != nil {
+		if err := attributes.Validate(); err != nil {
+			return err
+		}
 		baseChain = true
 		c = nfc.conn.AddChain(&nftables.Chain{
 			Name:     name,
@@ -99,6 +112,8 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) {
 		baseChain:      baseChain,
 		RulesInterface: newRules(nfc.conn, nfc.table, c),
 	}
+
+	return nil
 }
 
 func (nfc *nfChains) Dump() ([]byte, error) {
