@@ -619,22 +619,19 @@ func TestMock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get chain interface for table filter-v4")
 	}
-	tblV4.Chains().Create(
-		"chain-1-v4",
-		nftables.ChainHookInput,
-		nftables.ChainPriorityFilter,
-		nftables.ChainTypeFilter)
+	chainAttrs := nftableslib.ChainAttributes{
+		Hook:     nftables.ChainHookInput,
+		Type:     nftables.ChainTypeFilter,
+		Priority: nftables.ChainPriorityFilter,
+	}
+	tblV4.Chains().Create("chain-1-v4", &chainAttrs)
 
 	m.ti.Tables().Create("filter-v6", nftables.TableFamilyIPv6)
 	tblV6, err := m.ti.Tables().Table("filter-v6", nftables.TableFamilyIPv6)
 	if err != nil {
 		t.Fatalf("failed to get chain interface for table filter-v6")
 	}
-	tblV6.Chains().Create(
-		"chain-1-v6",
-		nftables.ChainHookInput,
-		nftables.ChainPriorityFilter,
-		nftables.ChainTypeFilter)
+	tblV6.Chains().Create("chain-1-v6", &chainAttrs)
 
 	for i, tt := range ipv4Tests {
 		ri, err := tblV4.Chains().Chain("chain-1-v4")
