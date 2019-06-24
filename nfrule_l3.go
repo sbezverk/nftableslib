@@ -4,12 +4,11 @@ import (
 	"fmt"
 
 	"github.com/google/nftables"
-	"github.com/google/nftables/expr"
 )
 
 func createL3(l3proto nftables.TableFamily, rule *L3Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if rule.Version != nil {
-		return processVersion(*rule.Version, rule.Exclude, rule.Verdict)
+		return processVersion(*rule.Version, rule.Exclude)
 	}
 	// IPv4 source address offset - 12, destination address offset - 16
 	// IPv6 source address offset - 8, destination address offset - 24
@@ -45,24 +44,22 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set *nftables.Set) (*n
 		return nil, nil, fmt.Errorf("both source and destination are nil")
 	}
 	if len(ruleAddr.List) != 0 {
-		return processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, rule.Verdict, set)
+		return processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, set)
 	}
 	if ruleAddr.Range[0] != nil && ruleAddr.Range[1] != nil {
-		return processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude, rule.Verdict)
+		return processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude)
 	}
-	return nil, nil, fmt.Errorf("both address list and address range is empry")
+
+	return nil, nil, fmt.Errorf("address list, address range and verdict are empry")
 }
 
 func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr,
-	excl bool, verdict *expr.Verdict, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+	excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(list) == 1 {
 		// Special case with a single entry in the list, as a result it does not require to build SetElement
 		expr, err := getExprForSingleIP(l3proto, offset, list[0], excl)
 		if err != nil {
 			return nil, nil, err
-		}
-		if verdict != nil {
-			expr = append(expr, verdict)
 		}
 		return &nftables.Rule{
 			Exprs: expr,
@@ -88,35 +85,29 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	if err != nil {
 		return nil, nil, err
 	}
-	if verdict != nil {
-		re = append(re, verdict)
-	}
+
 	return &nftables.Rule{
 		Exprs: re,
 	}, setElements, nil
 }
 
-func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool) (*nftables.Rule, []nftables.SetElement, error) {
 	re, err := getExprForRangeIP(l3proto, offset, rng, excl)
 	if err != nil {
 		return nil, nil, err
 	}
-	if verdict != nil {
-		re = append(re, verdict)
-	}
+
 	return &nftables.Rule{
 		Exprs: re,
 	}, nil, nil
 }
 
-func processVersion(version uint32, excl bool, verdict *expr.Verdict) (*nftables.Rule, []nftables.SetElement, error) {
+func processVersion(version uint32, excl bool) (*nftables.Rule, []nftables.SetElement, error) {
 	re, err := getExprForIPVersion(version, excl)
 	if err != nil {
 		return nil, nil, err
 	}
-	if verdict != nil {
-		re = append(re, verdict)
-	}
+
 	return &nftables.Rule{
 		Exprs: re,
 	}, nil, nil

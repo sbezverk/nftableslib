@@ -63,6 +63,14 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	if err != nil {
 		return err
 	}
+	// Case when Rule would consist of just Verdict
+	if r == nil {
+		re := []expr.Any{}
+		re = append(re, rule.Verdict)
+		r = &nftables.Rule{
+			Exprs: re,
+		}
+	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
@@ -168,7 +176,6 @@ type L3Rule struct {
 	// TODO Add validation
 	Version *uint32
 	Exclude bool
-	Verdict *expr.Verdict
 }
 
 // Validate checks parameters of L3Rule struct
@@ -222,7 +229,6 @@ type L4Rule struct {
 	// TODO Does validation needed for Exclude?
 	Exclude  bool
 	Redirect *uint16
-	Verdict  *expr.Verdict
 }
 
 // Validate checks parameters of L4Rule struct
@@ -246,19 +252,15 @@ func (l4 *L4Rule) Validate() error {
 			return err
 		}
 	}
-	if l4.Redirect != nil && l4.Verdict != nil {
-		return fmt.Errorf("either Verdict or Redirect but not both can be specified")
-	}
-	if l4.Redirect == nil && l4.Verdict == nil {
-		return fmt.Errorf("neither Verdict nor Redirect is specified")
-	}
+
 	return nil
 }
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3 *L3Rule
-	L4 *L4Rule
+	L3      *L3Rule
+	L4      *L4Rule
+	Verdict *expr.Verdict
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found
@@ -272,6 +274,8 @@ func (r Rule) Validate() error {
 	if r.L4 != nil {
 		return r.L4.Validate()
 	}
-
-	return fmt.Errorf("L3 or L4 parameters must be specified")
+	if r.Verdict != nil {
+		return nil
+	}
+	return fmt.Errorf("L3 or L4 parameters or Verdict must be specified")
 }
