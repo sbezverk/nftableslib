@@ -11,6 +11,15 @@ import (
 	"github.com/google/nftables/expr"
 )
 
+// By some reason github.com/golang/unix does not define these constants but
+// they can by used in a Verdict.
+const (
+	// NFT_DROP defines Drop action for a verdict
+	NFT_DROP = 0x0
+	// NFT_ACCEPT defines Accept action for a verdict
+	NFT_ACCEPT = 0x1
+)
+
 // RulesInterface defines third level interface operating with nf Rules
 type RulesInterface interface {
 	Rules() RuleFuncs
