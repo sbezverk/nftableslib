@@ -40,9 +40,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -63,9 +63,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -86,9 +86,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: true,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -121,9 +121,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: true,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -156,9 +156,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -185,9 +185,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -214,9 +214,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -237,9 +237,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -260,9 +260,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: true,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -289,9 +289,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: true,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -324,9 +324,9 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_JUMP),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
 				},
 			},
 			success: true,
@@ -353,10 +353,10 @@ func TestMock(t *testing.T) {
 						},
 					},
 					Exclude: false,
-					Verdict: &expr.Verdict{
-						Kind:  expr.VerdictKind(unix.NFT_JUMP),
-						Chain: "fake_chain_1",
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind:  expr.VerdictKind(unix.NFT_JUMP),
+					Chain: "fake_chain_1",
 				},
 			},
 			success: true,
@@ -378,10 +378,10 @@ func TestMock(t *testing.T) {
 							&port1,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind:  expr.VerdictKind(unix.NFT_JUMP),
-						Chain: "fake_chain_1",
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind:  expr.VerdictKind(unix.NFT_JUMP),
+					Chain: "fake_chain_1",
 				},
 			},
 			success: true,
@@ -396,9 +396,9 @@ func TestMock(t *testing.T) {
 							&port2,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
@@ -413,10 +413,10 @@ func TestMock(t *testing.T) {
 							&port1,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
 					Exclude: true,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
@@ -496,10 +496,10 @@ func TestMock(t *testing.T) {
 							&port2,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
 					Exclude: false,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
@@ -532,10 +532,10 @@ func TestMock(t *testing.T) {
 							&port2,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
 					Exclude: true,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
@@ -568,10 +568,10 @@ func TestMock(t *testing.T) {
 							&port2,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
 					Exclude: false,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
@@ -604,10 +604,10 @@ func TestMock(t *testing.T) {
 							&port2,
 						},
 					},
-					Verdict: &expr.Verdict{
-						Kind: expr.VerdictKind(unix.NFT_RETURN),
-					},
 					Exclude: true,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
 				},
 			},
 			success: true,
