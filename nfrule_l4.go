@@ -9,36 +9,36 @@ import (
 	"github.com/google/nftables"
 )
 
-func createL4(rule *L4Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func createL4(rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	var rulePort *Port
 	var offset uint32
-
+	l4 := rule.L4
 	set.KeyType = nftables.TypeInetService
-	if rule.Src != nil {
-		rulePort = rule.Src
+	if l4.Src != nil {
+		rulePort = l4.Src
 		offset = 0
 	}
-	if rule.Dst != nil {
-		rulePort = rule.Dst
+	if l4.Dst != nil {
+		rulePort = l4.Dst
 		offset = 2
 	}
 	if rulePort == nil {
 		return nil, nil, fmt.Errorf("both source and destination ports are nil")
 	}
 	if rule.Redirect != nil {
-		return processPortRedirect(rule.L4Proto, offset, rulePort, *rule.Redirect, rule.Exclude, set)
+		return processPortRedirect(l4.L4Proto, offset, rulePort, rule.Redirect, rule.Exclude, set)
 	}
 
-	return processL4Port(rule.L4Proto, offset, rulePort, rule.Exclude, set)
+	return processL4Port(l4.L4Proto, offset, rulePort, rule.Exclude, set)
 }
 
-func processPortRedirect(l4proto uint8, offset uint32, port *Port, redirect uint16, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processPortRedirect(l4proto uint8, offset uint32, port *Port, redirect *Redirect, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	if len(port.List) != 0 {
 		re, se, err := processPortList(l4proto, offset, port.List, excl, set)
 		if err != nil {
 			return nil, nil, err
 		}
-		re = append(re, getExprForRedirectPort(redirect)...)
+		re = append(re, getExprForRedirectPort(redirect.Port)...)
 		return &nftables.Rule{
 			Exprs: re,
 		}, se, nil
@@ -48,7 +48,7 @@ func processPortRedirect(l4proto uint8, offset uint32, port *Port, redirect uint
 		if err != nil {
 			return nil, nil, err
 		}
-		re = append(re, getExprForRedirectPort(redirect)...)
+		re = append(re, getExprForRedirectPort(redirect.Port)...)
 		return &nftables.Rule{
 			Exprs: re,
 		}, nil, nil

@@ -64,10 +64,10 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	var se []nftables.SetElement
 	var err error
 	if rule.L3 != nil {
-		r, se, err = createL3(nfr.table.Family, rule.L3, &set)
+		r, se, err = createL3(nfr.table.Family, rule, &set)
 	}
 	if rule.L4 != nil {
-		r, se, err = createL4(rule.L4, &set)
+		r, se, err = createL4(rule, &set)
 	}
 	if err != nil {
 		return err
@@ -183,8 +183,9 @@ type L3Rule struct {
 	Src *IPAddrSpec
 	Dst *IPAddrSpec
 	// TODO Add validation
-	Version *uint32
-	Exclude bool
+	Version  *uint32
+	Protocol *nftables.TableFamily
+	// Exclude bool
 }
 
 // Validate checks parameters of L3Rule struct
@@ -195,9 +196,6 @@ func (l3 *L3Rule) Validate() error {
 	if l3.Src == nil && l3.Dst == nil && l3.Version == nil {
 		return fmt.Errorf("neither L3 Src nor L3 Dst is specified")
 	}
-	//	if l3.Verdict == nil {
-	//		return fmt.Errorf("L3 does not have Verdict specified")
-	//	}
 	if l3.Src != nil {
 		if err := l3.Src.Validate(); err != nil {
 			return err
@@ -236,8 +234,8 @@ type L4Rule struct {
 	Src     *Port
 	Dst     *Port
 	// TODO Does validation needed for Exclude?
-	Exclude  bool
-	Redirect *uint16
+	// Exclude  bool
+	// Redirect *uint16
 }
 
 // Validate checks parameters of L4Rule struct
@@ -265,11 +263,20 @@ func (l4 *L4Rule) Validate() error {
 	return nil
 }
 
+// Redirect defines struct describing Redirection action, if Transparent Proxy is required
+// TProxy should be set
+type Redirect struct {
+	Port   uint16
+	TProxy bool
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3      *L3Rule
-	L4      *L4Rule
-	Verdict *expr.Verdict
+	L3       *L3Rule
+	L4       *L4Rule
+	Verdict  *expr.Verdict
+	Exclude  bool
+	Redirect *Redirect
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found

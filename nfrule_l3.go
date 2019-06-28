@@ -6,16 +6,17 @@ import (
 	"github.com/google/nftables"
 )
 
-func createL3(l3proto nftables.TableFamily, rule *L3Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
-	if rule.Version != nil {
-		return processVersion(*rule.Version, rule.Exclude)
+func createL3(l3proto nftables.TableFamily, rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+	l3 := rule.L3
+	if l3.Version != nil {
+		return processVersion(*l3.Version, rule.Exclude)
 	}
 	// IPv4 source address offset - 12, destination address offset - 16
 	// IPv6 source address offset - 8, destination address offset - 24
 	var ruleAddr *IPAddrSpec
 	var addrOffset uint32
-	if rule.Src != nil {
-		ruleAddr = rule.Src
+	if l3.Src != nil {
+		ruleAddr = l3.Src
 		switch l3proto {
 		case nftables.TableFamilyIPv4:
 			addrOffset = 12
@@ -27,8 +28,8 @@ func createL3(l3proto nftables.TableFamily, rule *L3Rule, set *nftables.Set) (*n
 			return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 		}
 	}
-	if rule.Dst != nil {
-		ruleAddr = rule.Dst
+	if l3.Dst != nil {
+		ruleAddr = l3.Dst
 		switch l3proto {
 		case nftables.TableFamilyIPv4:
 			addrOffset = 16
