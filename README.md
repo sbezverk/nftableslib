@@ -9,8 +9,9 @@ A rule is defined by means of a Rule type.
 Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 ```
 type Rule struct {
-	L3 *L3Rule
-	L4 *L4Rule
+	L3      *L3Rule
+	L4      *L4Rule
+    Verdict *expr.Verdict
 }
 ```
 
@@ -24,7 +25,6 @@ type L4Rule struct {
 	Dst     *Port
 	Exclude  bool
 	Redirect *uint32
-	Verdict  *expr.Verdict
 }
 ```
 
@@ -35,7 +35,6 @@ type L3Rule struct {
 	Dst *IPAddrSpec
 	Version *uint32
 	Exclude bool
-	Verdict *expr.Verdict
 }
 ```
 Rule type offers Validation method which checks all parameters provided in Rule structure for consistency.
