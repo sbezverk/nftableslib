@@ -67,7 +67,7 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		r, se, err = createL3(nfr.table.Family, rule, &set)
 	}
 	if rule.L4 != nil {
-		r, se, err = createL4(rule, &set)
+		r, se, err = createL4(nfr.table.Family, rule, &set)
 	}
 	if err != nil {
 		return err

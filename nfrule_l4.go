@@ -9,7 +9,7 @@ import (
 	"github.com/google/nftables"
 )
 
-func createL4(rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func createL4(family nftables.TableFamily, rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
 	var rulePort *Port
 	var offset uint32
 	l4 := rule.L4
@@ -26,60 +26,79 @@ func createL4(rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElem
 		return nil, nil, fmt.Errorf("both source and destination ports are nil")
 	}
 	if rule.Redirect != nil {
-		return processPortRedirect(l4.L4Proto, offset, rulePort, rule.Redirect, rule.Exclude, set)
+		re, se, err := processPortRedirect(family, l4.L4Proto, offset, rulePort, rule.Redirect, rule.Exclude, set)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &nftables.Rule{Exprs: re}, se, nil
+	}
+	if rule.Verdict != nil {
+		re, se, err := processL4Port(l4.L4Proto, offset, rulePort, rule.Exclude, set)
+		if err != nil {
+			return nil, nil, err
+		}
+		re = append(re, rule.Verdict)
+		return &nftables.Rule{Exprs: re}, se, nil
 	}
 
-	return processL4Port(l4.L4Proto, offset, rulePort, rule.Exclude, set)
+	return nil, nil, fmt.Errorf("No Verdict or Redirect specified")
 }
 
-func processPortRedirect(l4proto uint8, offset uint32, port *Port, redirect *Redirect, excl bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processPortRedirect(family nftables.TableFamily, l4proto uint8, offset uint32, port *Port, redirect *Redirect, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
+	re := []expr.Any{}
+	se := []nftables.SetElement{}
+	var err error
+	processed := false
 	if len(port.List) != 0 {
-		re, se, err := processPortList(l4proto, offset, port.List, excl, set)
+		re, se, err = processPortList(l4proto, offset, port.List, excl, set)
 		if err != nil {
 			return nil, nil, err
 		}
-		re = append(re, getExprForRedirectPort(redirect.Port)...)
-		return &nftables.Rule{
-			Exprs: re,
-		}, se, nil
+		processed = true
 	}
 	if port.Range[0] != nil && port.Range[1] != nil {
-		re, _, err := processPortRange(l4proto, offset, port.Range, excl)
+		re, _, err = processPortRange(l4proto, offset, port.Range, excl)
 		if err != nil {
 			return nil, nil, err
 		}
+		processed = true
+	}
+	if !processed {
+		return nil, nil, fmt.Errorf("both port list and port range are nil")
+	}
+	if redirect.TProxy {
+		re = append(re, getExprForTProxyRedirect(redirect.Port, family)...)
+	} else {
 		re = append(re, getExprForRedirectPort(redirect.Port)...)
-		return &nftables.Rule{
-			Exprs: re,
-		}, nil, nil
 	}
 
-	return nil, nil, fmt.Errorf("both port list and port range are nil")
+	return re, se, nil
 }
 
-func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
+func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
+	re := []expr.Any{}
+	se := []nftables.SetElement{}
+	var err error
+	processed := false
 	if len(port.List) != 0 {
-		re, se, err := processPortList(l4proto, offset, port.List, exclude, set)
+		re, se, err = processPortList(l4proto, offset, port.List, exclude, set)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		return &nftables.Rule{
-			Exprs: re,
-		}, se, nil
+		processed = true
 	}
 	if port.Range[0] != nil && port.Range[1] != nil {
-		re, _, err := processPortRange(l4proto, offset, port.Range, exclude)
+		re, _, err = processPortRange(l4proto, offset, port.Range, exclude)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		return &nftables.Rule{
-			Exprs: re,
-		}, nil, nil
+		processed = true
+	}
+	if !processed {
+		return nil, nil, fmt.Errorf("both port list and port range are nil")
 	}
 
-	return nil, nil, fmt.Errorf("both port list and port range are nil")
+	return re, se, nil
 }
 
 func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
