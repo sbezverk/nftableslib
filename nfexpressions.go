@@ -248,14 +248,13 @@ func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, excl bool,
 func getExprForTProxyRedirect(port uint16, family nftables.TableFamily) []expr.Any {
 	re := []expr.Any{}
 	re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.BigEndian.PutUint16(port)})
-	// TODO Uncomment when TProxy PR gets merged into nftables
-	/*	re = append(re,
+	re = append(re,
 		&expr.TProxy{
 			Family:      byte(family),
 			TableFamily: byte(family),
 			RegPort:     1,
 		})
-	*/
+
 	return re
 }
 

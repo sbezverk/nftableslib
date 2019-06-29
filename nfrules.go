@@ -144,6 +144,7 @@ func (ip *IPAddr) Validate() error {
 	if ip.CIDR && ip.Mask == nil {
 		return fmt.Errorf("mask length must be specified when CIDR is true")
 	}
+
 	return nil
 }
 
@@ -175,17 +176,15 @@ func (ip *IPAddrSpec) Validate() error {
 			}
 		}
 	}
+
 	return nil
 }
 
 // L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
 type L3Rule struct {
-	Src *IPAddrSpec
-	Dst *IPAddrSpec
-	// TODO Add validation
-	Version  *uint32
-	Protocol *nftables.TableFamily
-	// Exclude bool
+	Src     *IPAddrSpec
+	Dst     *IPAddrSpec
+	Version *uint32
 }
 
 // Validate checks parameters of L3Rule struct
@@ -233,9 +232,6 @@ type L4Rule struct {
 	L4Proto uint8
 	Src     *Port
 	Dst     *Port
-	// TODO Does validation needed for Exclude?
-	// Exclude  bool
-	// Redirect *uint16
 }
 
 // Validate checks parameters of L4Rule struct
@@ -284,14 +280,24 @@ func (r Rule) Validate() error {
 	if r.L3 != nil && r.L4 != nil {
 		return fmt.Errorf("either L3 or L4 but not both can be specified")
 	}
-	if r.L3 != nil {
-		return r.L3.Validate()
+	if r.Verdict != nil && r.Redirect != nil {
+		return fmt.Errorf("either Verdict or Redirect but not both can be specified")
 	}
-	if r.L4 != nil {
-		return r.L4.Validate()
+	if r.L3 != nil {
+		if err := r.L3.Validate(); err != nil {
+			return err
+		}
+	} else if r.L4 != nil {
+		if err := r.L4.Validate(); err != nil {
+			return err
+		}
+	} else if r.Redirect != nil {
+		// If both L3 and L4 are nil then Redirect cannot be used as there is nothing to redirect
+		return fmt.Errorf("Redirect requires L3 or L4 to be not nil")
 	}
 	if r.Verdict != nil {
 		return nil
 	}
+
 	return fmt.Errorf("L3 or L4 parameters or Verdict must be specified")
 }
