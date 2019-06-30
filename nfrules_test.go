@@ -70,7 +70,7 @@ func TestRule(t *testing.T) {
 			success: true,
 		},
 		{
-			name: "Good L3 Protocol Only",
+			name: "Good L3 Protocol with Redicrect",
 			rule: &Rule{
 				L3: &L3Rule{
 					Protocol: &ipProtocol,
@@ -81,6 +81,38 @@ func TestRule(t *testing.T) {
 				},
 			},
 			success: true,
+		},
+		{
+			name: "Redirect Only",
+			rule: &Rule{
+				Redirect: &Redirect{
+					Port:   uint16(50000),
+					TProxy: true,
+				},
+			},
+			success: false,
+		},
+		{
+			name: "Verdict Only",
+			rule: &Rule{
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Redirect and Verdict",
+			rule: &Rule{
+				Redirect: &Redirect{
+					Port:   uint16(50000),
+					TProxy: true,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
+				},
+			},
+			success: false,
 		},
 	}
 
