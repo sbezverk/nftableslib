@@ -11,6 +11,8 @@ import (
 
 func TestRule(t *testing.T) {
 	ipv4Mask := uint8(24)
+	ipVersion := uint32(4)
+	ipProtocol := uint32(unix.IPPROTO_TCP)
 	tests := []struct {
 		name    string
 		rule    *Rule
@@ -49,6 +51,34 @@ func TestRule(t *testing.T) {
 						},
 					},
 				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Good L3 Version Only",
+			rule: &Rule{
+				L3: &L3Rule{
+					Version: &ipVersion,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_RETURN),
+				},
+			},
+			success: true,
+		},
+		{
+			name: "Good L3 Protocol Only",
+			rule: &Rule{
+				L3: &L3Rule{
+					Protocol: &ipProtocol,
+				},
+				Redirect: &Redirect{
+					Port:   uint16(50000),
+					TProxy: true,
+				},
 			},
 			success: true,
 		},
@@ -57,7 +87,7 @@ func TestRule(t *testing.T) {
 	for _, tt := range tests {
 		err := tt.rule.Validate()
 		if tt.success && err != nil {
-			t.Errorf("Test \"%s\" failed with error: %+v but supposed to succeed", tt.name, err)
+			t.Errorf("Test \"%s\" failed with error: \"%+v\" but supposed to succeed", tt.name, err)
 			continue
 		}
 		if !tt.success && err == nil {

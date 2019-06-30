@@ -182,28 +182,29 @@ func (ip *IPAddrSpec) Validate() error {
 
 // L3Rule contains parameters for L3 based rule, either Source or Destination can be specified
 type L3Rule struct {
-	Src     *IPAddrSpec
-	Dst     *IPAddrSpec
-	Version *uint32
+	Src      *IPAddrSpec
+	Dst      *IPAddrSpec
+	Version  *uint32
+	Protocol *uint32
 }
 
 // Validate checks parameters of L3Rule struct
 func (l3 *L3Rule) Validate() error {
+	// case when both Source and Destination is specified
 	if l3.Src != nil && l3.Dst != nil {
 		return fmt.Errorf("either L3 Src or L3 Dst but not both can be specified")
 	}
-	if l3.Src == nil && l3.Dst == nil && l3.Version == nil {
-		return fmt.Errorf("neither L3 Src nor L3 Dst is specified")
-	}
-	if l3.Src != nil {
+	switch {
+	case l3.Src != nil:
 		if err := l3.Src.Validate(); err != nil {
 			return err
 		}
-	}
-	if l3.Dst != nil {
+	case l3.Dst != nil:
 		if err := l3.Dst.Validate(); err != nil {
 			return err
 		}
+	case l3.Version != nil:
+	case l3.Protocol != nil:
 	}
 
 	return nil
@@ -283,21 +284,22 @@ func (r Rule) Validate() error {
 	if r.Verdict != nil && r.Redirect != nil {
 		return fmt.Errorf("either Verdict or Redirect but not both can be specified")
 	}
-	if r.L3 != nil {
+	if r.L3 == nil && r.L4 == nil && r.Redirect != nil {
+		return fmt.Errorf("Redirect requires L3 or L4 to be not nil")
+	}
+	if r.Verdict == nil && r.Redirect == nil {
+		return fmt.Errorf("either Redirect or Verdict is required")
+	}
+	switch {
+	case r.L3 != nil:
 		if err := r.L3.Validate(); err != nil {
 			return err
 		}
-	} else if r.L4 != nil {
+	case r.L4 != nil:
 		if err := r.L4.Validate(); err != nil {
 			return err
 		}
-	} else if r.Redirect != nil {
-		// If both L3 and L4 are nil then Redirect cannot be used as there is nothing to redirect
-		return fmt.Errorf("Redirect requires L3 or L4 to be not nil")
-	}
-	if r.Verdict != nil {
-		return nil
 	}
 
-	return fmt.Errorf("L3 or L4 parameters or Verdict must be specified")
+	return nil
 }

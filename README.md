@@ -12,6 +12,8 @@ type Rule struct {
 	L3      *L3Rule
 	L4      *L4Rule
     Verdict *expr.Verdict
+    Redirect *uint32
+    Exclude bool
 }
 ```
 
@@ -23,8 +25,6 @@ type L4Rule struct {
 	L4Proto int
 	Src     *Port
 	Dst     *Port
-	Exclude  bool
-	Redirect *uint32
 }
 ```
 
@@ -34,7 +34,6 @@ type L3Rule struct {
 	Src *IPAddrSpec
 	Dst *IPAddrSpec
 	Version *uint32
-	Exclude bool
 }
 ```
 Rule type offers Validation method which checks all parameters provided in Rule structure for consistency.
