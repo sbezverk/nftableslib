@@ -25,17 +25,6 @@ func TestRule(t *testing.T) {
 			success: false,
 		},
 		{
-			name: "Rule with just Verdict",
-			rule: &Rule{
-
-				Verdict: &expr.Verdict{
-					Kind:  expr.VerdictKind(unix.NFT_JUMP),
-					Chain: "test-chain",
-				},
-			},
-			success: true,
-		},
-		{
 			name: "Good L3",
 			rule: &Rule{
 				L3: &L3Rule{
@@ -95,12 +84,15 @@ func TestRule(t *testing.T) {
 		{
 			name: "Verdict Only",
 			rule: &Rule{
+
 				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
+					Kind:  expr.VerdictKind(unix.NFT_JUMP),
+					Chain: "test-chain",
 				},
 			},
 			success: true,
 		},
+
 		{
 			name: "Redirect and Verdict",
 			rule: &Rule{
