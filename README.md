@@ -6,7 +6,9 @@ Similarly, once chain is create a caller can request this chain's Rules interfac
 
 A rule is defined by means of a Rule type. 
 
-Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
+Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified. 
+
+**TODO** Add description of cases for Verdict, Redirect and Exclude
 ```
 type Rule struct {
 	L3      *L3Rule
