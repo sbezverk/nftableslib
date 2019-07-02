@@ -304,12 +304,12 @@ func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl boo
 	return re, nil
 }
 
-func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
+func getExprForIPVersion(version byte, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
-		Base:         expr.PayloadBaseTransportHeader,
-		Offset:       0, // Offset for a transport protocol header
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       0, // Offset for a version of IP
 		Len:          1, // 1 byte for IP version
 	})
 	if excl {
@@ -319,15 +319,15 @@ func getExprForIPVersion(version uint32, excl bool) ([]expr.Any, error) {
 	re = append(re, &expr.Bitwise{
 		SourceRegister: 1,
 		DestRegister:   1,
-		Len:            4,
-		Mask:           binaryutil.NativeEndian.PutUint32(uint32(0x000000f0)),
-		Xor:            binaryutil.NativeEndian.PutUint32(uint32(0x00000000)),
+		Len:            1,
+		Mask:           []byte{0xf0},
+		Xor:            []byte{0x0},
 	})
 
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(version),
+		Data:     []byte{(version << 4)},
 	})
 
 	return re, nil

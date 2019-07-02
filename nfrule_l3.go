@@ -129,7 +129,7 @@ func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAdd
 	return re, nil, nil
 }
 
-func processVersion(version uint32, excl bool) ([]expr.Any, []nftables.SetElement, error) {
+func processVersion(version byte, excl bool) ([]expr.Any, []nftables.SetElement, error) {
 	re, err := getExprForIPVersion(version, excl)
 	if err != nil {
 		return nil, nil, err

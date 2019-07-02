@@ -184,7 +184,7 @@ func (ip *IPAddrSpec) Validate() error {
 type L3Rule struct {
 	Src      *IPAddrSpec
 	Dst      *IPAddrSpec
-	Version  *uint32
+	Version  *byte
 	Protocol *uint32
 }
 

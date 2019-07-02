@@ -11,7 +11,7 @@ import (
 
 func TestRule(t *testing.T) {
 	ipv4Mask := uint8(24)
-	ipVersion := uint32(4)
+	ipVersion := byte(4)
 	ipProtocol := uint32(unix.IPPROTO_TCP)
 	tests := []struct {
 		name    string
