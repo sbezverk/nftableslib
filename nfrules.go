@@ -36,12 +36,17 @@ type nfRules struct {
 	table *nftables.Table
 	chain *nftables.Chain
 	sync.Mutex
-	rules map[string]*nfRule
+	currentID uint32
+	rules     *nfRule
 }
 
 type nfRule struct {
+	id   uint32
 	rule *nftables.Rule
 	set  *nftables.Set
+	sync.Mutex
+	next *nfRule
+	prev *nfRule
 }
 
 func (nfr *nfRules) Rules() RuleFuncs {
@@ -83,20 +88,19 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
-	nfr.Lock()
-	defer nfr.Unlock()
-	if _, ok := nfr.rules[name]; ok {
-		delete(nfr.rules, name)
-	}
-	nfr.rules[name] = &nfRule{}
+	rr := &nfRule{}
 	if len(se) != 0 {
 		if err := nfr.conn.AddSet(&set, se); err != nil {
 			return err
 		}
 		set.DataLen = len(se)
-		nfr.rules[name].set = &set
+		rr.set = &set
 	}
-	nfr.rules[name].rule = nfr.conn.AddRule(r)
+	rr.rule = r
+	nfr.addRule(rr)
+
+	// Pushing rule to netlink library to be programmed by Flsuh()
+	nfr.conn.AddRule(r)
 
 	return nil
 }
@@ -106,7 +110,7 @@ func (nfr *nfRules) Dump() ([]byte, error) {
 	defer nfr.Unlock()
 	var data []byte
 
-	for _, r := range nfr.rules {
+	for _, r := range nfr.dumpRules() {
 		b, err := json.Marshal(&r)
 		if err != nil {
 			return nil, err
@@ -119,10 +123,11 @@ func (nfr *nfRules) Dump() ([]byte, error) {
 
 func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 	return &nfRules{
-		conn:  conn,
-		table: t,
-		chain: c,
-		rules: make(map[string]*nfRule),
+		conn:      conn,
+		table:     t,
+		chain:     c,
+		currentID: 10,
+		rules:     nil,
 	}
 }
 
