@@ -1,4 +1,4 @@
-https://travis-ci.com/sbezverk/nftableslib#
+[![Build Status](https://travis-ci.org/sbezverk/nftableslib.svg?branch=master)](https://travis-ci.org/sbezverk/nftableslib)
 # wip nftableslib
 
 nftableslib is a library offering an interface to nf tables. It is based on "github.com/google/nftables" and offers a higher level abstruction level. 

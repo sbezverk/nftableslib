@@ -2,6 +2,11 @@ package nftableslib
 
 import "fmt"
 
+const (
+	initialRuleID   = 10
+	ruleIDIncrement = 10
+)
+
 func (r *nfRules) addRule(e *nfRule) {
 	if r.rules == nil {
 		r.Lock()
@@ -9,8 +14,9 @@ func (r *nfRules) addRule(e *nfRule) {
 		r.rules = e
 		r.rules.next = nil
 		r.rules.prev = nil
-		r.rules.id = r.currentID
-		r.currentID += 10
+		r.currentID = initialRuleID
+		r.rules.id = initialRuleID
+		r.currentID += ruleIDIncrement
 		return
 	}
 	last := getLast(r.rules)
@@ -20,7 +26,7 @@ func (r *nfRules) addRule(e *nfRule) {
 	last.next.next = nil
 	last.next.prev = last
 	last.next.id = r.currentID
-	r.currentID += 10
+	r.currentID += ruleIDIncrement
 
 	return
 }
