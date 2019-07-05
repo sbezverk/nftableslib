@@ -8,9 +8,9 @@ const (
 )
 
 func (r *nfRules) addRule(e *nfRule) {
+	r.Lock()
+	defer r.Unlock()
 	if r.rules == nil {
-		r.Lock()
-		defer r.Unlock()
 		r.rules = e
 		r.rules.next = nil
 		r.rules.prev = nil
@@ -20,9 +20,13 @@ func (r *nfRules) addRule(e *nfRule) {
 		return
 	}
 	last := getLast(r.rules)
+	// Locking current last list's elelemnt.
 	last.Lock()
 	defer last.Unlock()
 	last.next = e
+	// Locking new list element while updating its fields.
+	last.next.Lock()
+	defer last.next.Unlock()
 	last.next.next = nil
 	last.next.prev = last
 	last.next.id = r.currentID
