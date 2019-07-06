@@ -1,13 +1,13 @@
 [![Build Status](https://travis-ci.org/sbezverk/nftableslib.svg?branch=master)](https://travis-ci.org/sbezverk/nftableslib)
 # wip nftableslib
 
-nftableslib is a library offering an interface to nf tables. It is based on "github.com/google/nftables" and offers a higher level abstruction level. 
-It allows to create tables, chains and rules. Once table is create a caller can request this table's Chains interface which will allow to create chains which belong to a specific table.
-Similarly, once chain is create a caller can request this chain's Rules interface. 
+nftableslib is a library offering an interface to Netfilter tables. It is based on "github.com/google/nftables" and offers a higher level of abstruction. 
+It allows to create tables, chains and rules. Once table is creates, a caller can request this table's Chains interface to create chains within this table.
+Similarly, once chain is created, a caller can request this chain's Rules interface to create rules for this chain.
 
-A rule is defined by means of a Rule type. 
+A caller defines netfilter rule by means of a Rule struct. 
 
-Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified. 
+Rule contains parameters for a rule to configure L3(ip/ipv6), L4(tcp/udp/port) parameters can be specified. 
 
 **TODO** Add description of cases for Verdict, Redirect and Exclude
 ```
@@ -20,7 +20,20 @@ type Rule struct {
 }
 ```
 
-A single rule can only carry L3 OR L4 parameteres. 
+**Verdict** defines an action to take when condition is met. In some cases **Verdict** can be used without any conditions to be the last action in the chain. Example, when chain has default policy of Accept, but you want the traffic which did not match any condition to be dropped.
+
+**Exclude** flag is true when the condition specified by the rules should be inverted. Example, L4 condition specifies match on tcp traffic for a range of ports 1025-1028, setting **Exclude** to *true* will match every tcp port with the exception of the ports specified in the range. 
+
+**Redirect** struct defines a port where the traffic matching condition should be fowarded to. If transparent proxy is required, **TProxy** variable should be set to *true*
+```
+type Redirect struct {
+	Port   uint16
+	TProxy bool
+}
+```
+
+A single rule can carry either L3 or L4 parameteres. L3 and L4 cannot be combined in the same rule. 
+Redirect requires either L3 or L4, if there is no condition to match some traffic validation of a rule will fail.
 
 L4 parameters are defined by L4 type:
 ```
@@ -39,6 +52,8 @@ type L3Rule struct {
 	Version *uint32
 }
 ```
+**Version** parameter is used to match against a particular IP protocol version. Example, all IPv4 or all IPv6 traffic.
+
 Rule type offers Validation method which checks all parameters provided in Rule structure for consistency.
 
 Here is example of programming a simple L3 rule:
@@ -115,11 +130,11 @@ func main() {
 					},
 				},
 			},
-			Verdict: &expr.Verdict{
-				Kind: expr.VerdictKind(unix.NFT_RETURN),
-			},
-			Exclude: false,
 		},
+        Verdict: &expr.Verdict{
+			Kind: expr.VerdictKind(unix.NFT_RETURN),
+		},
+		Exclude: false,
 	}
     // Getting Rules interface from chain ipv4chain-1
 	ri, err := ci.Chains().Chain("ipv4chain-1")
