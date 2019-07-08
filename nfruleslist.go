@@ -16,6 +16,7 @@ func (r *nfRules) addRule(e *nfRule) {
 		r.rules.prev = nil
 		r.currentID = initialRuleID
 		r.rules.id = initialRuleID
+		r.rules.rule.RuleID = initialRuleID
 		r.currentID += ruleIDIncrement
 		return
 	}
@@ -30,6 +31,7 @@ func (r *nfRules) addRule(e *nfRule) {
 	last.next.next = nil
 	last.next.prev = last
 	last.next.id = r.currentID
+	last.next.rule.RuleID = r.currentID
 	r.currentID += ruleIDIncrement
 
 	return
