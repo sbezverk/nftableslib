@@ -2,6 +2,8 @@ package nftableslib
 
 import (
 	"testing"
+
+	"github.com/google/nftables"
 )
 
 func TestAddRule(t *testing.T) {
@@ -12,6 +14,9 @@ func TestAddRule(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		r.addRule(&nfRule{
 			id: uint32(i),
+			rule: &nftables.Rule{
+				RuleID: uint32((i + 1) * 10),
+			},
 		})
 	}
 
@@ -74,6 +79,9 @@ func TestRemoveRule(t *testing.T) {
 		for i := 0; i < tt.number; i++ {
 			r.addRule(&nfRule{
 				id: uint32((i + 1) * 10),
+				rule: &nftables.Rule{
+					RuleID: uint32((i + 1) * 10),
+				},
 			})
 		}
 		err := r.removeRule(tt.removeID)

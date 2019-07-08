@@ -29,6 +29,7 @@ type RulesInterface interface {
 type RuleFuncs interface {
 	Create(string, *Rule) error
 	Dump() ([]byte, error)
+	UpdateRulesHandle() error
 }
 
 type nfRules struct {
@@ -119,6 +120,21 @@ func (nfr *nfRules) Dump() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// UpdateRulesHandle populates rule's handle information with handle value allocated by the kernel.
+// Handle information can be used for further rule's management.
+func (nfr *nfRules) UpdateRulesHandle() error {
+	r := nfr.rules
+	for ; r != nil; r = r.next {
+		handle, err := nfr.conn.GetRuleHandle(nfr.table, nfr.chain, r.id)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Table: %s Chain: %s rule id: %d handle: %d\n", nfr.table.Name, nfr.chain.Name, r.id, handle)
+		r.rule.Handle = handle
+	}
+	return nil
 }
 
 func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
