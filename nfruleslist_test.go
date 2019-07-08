@@ -14,6 +14,9 @@ func TestAddRule(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		r.addRule(&nfRule{
 			id: uint32(i),
+			rule: &nftables.Rule{
+				RuleID: uint32((i + 1) * 10),
+			},
 		})
 	}
 
