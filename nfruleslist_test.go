@@ -90,5 +90,5 @@ func TestRemoveRule(t *testing.T) {
 }
 
 func TestInsertRule(t *testing.T) {
-
+	// TODO Add test after insertRule is implemented
 }
