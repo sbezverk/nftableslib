@@ -652,7 +652,7 @@ func TestMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
-		err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -666,7 +666,7 @@ func TestMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v6")
 		}
-		err = ri.Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -680,7 +680,7 @@ func TestMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
-		err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}

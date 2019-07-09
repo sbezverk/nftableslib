@@ -27,9 +27,11 @@ type RulesInterface interface {
 
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
-	Create(string, *Rule) error
+	Create(string, *Rule) (uint32, error)
+	Insert(string, *Rule, uint64) (uint32, error)
 	Dump() ([]byte, error)
 	UpdateRulesHandle() error
+	GetRuleHandle(id uint32) (uint64, error)
 }
 
 type nfRules struct {
@@ -54,10 +56,10 @@ func (nfr *nfRules) Rules() RuleFuncs {
 	return nfr
 }
 
-func (nfr *nfRules) Create(name string, rule *Rule) error {
+func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	// Validating passed rule parameters
 	if err := rule.Validate(); err != nil {
-		return err
+		return 0, err
 	}
 	set := nftables.Set{
 		Anonymous: false,
@@ -76,7 +78,7 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 		r, se, err = createL4(nfr.table.Family, rule, &set)
 	}
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// Case when Rule would consist of just Verdict
 	if r == nil {
@@ -92,7 +94,7 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	rr := &nfRule{}
 	if len(se) != 0 {
 		if err := nfr.conn.AddSet(&set, se); err != nil {
-			return err
+			return 0, err
 		}
 		set.DataLen = len(se)
 		rr.set = &set
@@ -103,7 +105,65 @@ func (nfr *nfRules) Create(name string, rule *Rule) error {
 	// Pushing rule to netlink library to be programmed by Flsuh()
 	nfr.conn.AddRule(r)
 
-	return nil
+	return rr.id, nil
+}
+
+// Insert inserts a rule passed as a parameter before the rule which handle value matches
+// the value of position passed as an argument.
+// Example: rule1 has handle of 5, you want to insert rule2 before rule1, then position for rule2 will be 5
+func (nfr *nfRules) Insert(name string, rule *Rule, position uint64) (uint32, error) {
+	// Validating passed rule parameters
+	if err := rule.Validate(); err != nil {
+		return 0, err
+	}
+	set := nftables.Set{
+		Anonymous: false,
+		Constant:  true,
+		Name:      name,
+		ID:        uint32(rand.Intn(0xffff)),
+		Table:     nfr.table,
+	}
+	var r *nftables.Rule
+	var se []nftables.SetElement
+	var err error
+	if rule.L3 != nil {
+		r, se, err = createL3(nfr.table.Family, rule, &set)
+	}
+	if rule.L4 != nil {
+		r, se, err = createL4(nfr.table.Family, rule, &set)
+	}
+	if err != nil {
+		return 0, err
+	}
+	// Case when Rule would consist of just Verdict
+	if r == nil {
+		re := []expr.Any{}
+		re = append(re, rule.Verdict)
+		r = &nftables.Rule{
+			Exprs: re,
+		}
+	}
+	r.Table = nfr.table
+	r.Chain = nfr.chain
+
+	rr := &nfRule{}
+	if len(se) != 0 {
+		if err := nfr.conn.AddSet(&set, se); err != nil {
+			return 0, err
+		}
+		set.DataLen = len(se)
+		rr.set = &set
+	}
+	rr.rule = r
+
+	nfr.addRule(rr)
+	// When  nftables.Rule has Position field populated, the new rule will be inserted BEFORE the rule
+	// which handle == position.
+	r.Position = position
+	// Pushing rule to netlink library to be programmed by Flsuh()
+	nfr.conn.AddRule(r)
+
+	return rr.id, nil
 }
 
 func (nfr *nfRules) Dump() ([]byte, error) {
@@ -131,10 +191,14 @@ func (nfr *nfRules) UpdateRulesHandle() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Table: %s Chain: %s rule id: %d handle: %d\n", nfr.table.Name, nfr.chain.Name, r.id, handle)
 		r.rule.Handle = handle
 	}
 	return nil
+}
+
+// GetRuleHandle gets a handle of rule specified by its id
+func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
+	return nfr.conn.GetRuleHandle(nfr.table, nfr.chain, id)
 }
 
 func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
