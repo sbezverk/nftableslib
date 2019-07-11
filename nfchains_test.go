@@ -50,7 +50,7 @@ func TestChains(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get chain interface for table test of type nftables.TableFamilyIPv4")
 	}
-	defer nft.Tables().Delete("test", nftables.TableFamilyIPv4)
+	defer nft.Tables().DeleteImm("test", nftables.TableFamilyIPv4)
 	for _, tt := range tests {
 		err := tbl.Chains().Create(tt.chain, tt.attributes)
 		if err != nil && tt.success {
