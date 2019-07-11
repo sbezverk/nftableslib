@@ -13,6 +13,7 @@ type NetNS interface {
 	Flush() error
 	FlushRuleset()
 	DelTable(*nftables.Table)
+	DelChain(*nftables.Chain)
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
@@ -28,14 +29,16 @@ type TablesInterface interface {
 // TableFuncs defines second level interface operating with nf tables
 type TableFuncs interface {
 	Table(name string, familyType nftables.TableFamily) (ChainsInterface, error)
-	Create(name string, familyType nftables.TableFamily)
-	Delete(name string, familyType nftables.TableFamily)
+	Create(name string, familyType nftables.TableFamily) error
+	Delete(name string, familyType nftables.TableFamily) error
+	CreateImm(name string, familyType nftables.TableFamily) error
+	DeleteImm(name string, familyType nftables.TableFamily) error
 	Exist(name string, familyType nftables.TableFamily) bool
 	Dump() ([]byte, error)
 }
 
 type nfTables struct {
-	Conn NetNS
+	conn NetNS
 	sync.Mutex
 	// Two dimensional map, 1st key is table family, 2nd key is table name
 	tables map[nftables.TableFamily]map[string]*nfTable
@@ -62,7 +65,7 @@ func InitNFTables(conn NetNS) TablesInterface {
 	ts := nfTables{
 		tables: map[nftables.TableFamily]map[string]*nfTable{},
 	}
-	ts.Conn = conn
+	ts.conn = conn
 
 	return &ts
 }
@@ -86,34 +89,53 @@ func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (Chains
 }
 
 // Create appends a table into NF tables list
-func (nft *nfTables) Create(name string, familyType nftables.TableFamily) {
+func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
 	if _, ok := nft.tables[familyType][name]; ok {
-		nft.Conn.DelTable(nft.tables[familyType][name].table)
+		return fmt.Errorf("table %s of type %+v already exists", name, familyType)
+		//		nft.Conn.DelTable(nft.tables[familyType][name].table)
 		// Removing old table, at this point, this table should be removed from the kernel as well.
-		delete(nft.tables[familyType], name)
+		//		delete(nft.tables[familyType], name)
 	}
-	t := nft.Conn.AddTable(&nftables.Table{
+	t := nft.conn.AddTable(&nftables.Table{
 		Family: familyType,
 		Name:   name,
 	})
 	nft.tables[familyType] = make(map[string]*nfTable)
 	nft.tables[familyType][name] = &nfTable{
 		table:           t,
-		ChainsInterface: newChains(nft.Conn, t),
+		ChainsInterface: newChains(nft.conn, t),
 	}
-
+	return nil
 }
 
-// Delete a specified table from NF tables list
-func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) {
+// Create appends a table into NF tables list and request to program it immediately
+func (nft *nfTables) CreateImm(name string, familyType nftables.TableFamily) error {
+	if err := nft.Create(name, familyType); err != nil {
+		return err
+	}
+
+	return nft.conn.Flush()
+}
+
+// DeleteImm requests nftables module to remove a specified table from the kernel and from NF tables list
+func (nft *nfTables) DeleteImm(name string, familyType nftables.TableFamily) error {
+	if err := nft.Delete(name, familyType); err != nil {
+		return err
+	}
+
+	return nft.conn.Flush()
+}
+
+// Delete removes a specified table from NF tables list
+func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) error {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
 	if _, ok := nft.tables[familyType][name]; ok {
-		nft.Conn.DelTable(nft.tables[familyType][name].table)
+		nft.conn.DelTable(nft.tables[familyType][name].table)
 		// Removing old table, at this point, this table should be removed from the kernel as well.
 		delete(nft.tables[familyType], name)
 	}
@@ -121,6 +143,8 @@ func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) {
 	if len(nft.tables[familyType]) == 0 {
 		delete(nft.tables, familyType)
 	}
+
+	return nil
 }
 
 // Exist checks is the table already defined

@@ -46,6 +46,9 @@ func (cha *ChainAttributes) Validate() error {
 type ChainFuncs interface {
 	Chain(name string) (RulesInterface, error)
 	Create(name string, attributes *ChainAttributes) error
+	CreateImm(name string, attributes *ChainAttributes) error
+	Delete(name string) error
+	DeleteImm(name string) error
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
 }
@@ -84,7 +87,7 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 	nfc.Lock()
 	defer nfc.Unlock()
 	if _, ok := nfc.chains[name]; ok {
-		delete(nfc.chains, name)
+		return fmt.Errorf("chain %s already exist in table %s", name, nfc.table.Name)
 	}
 	var baseChain bool
 	var c *nftables.Chain
@@ -114,6 +117,33 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 	}
 
 	return nil
+}
+
+func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
+	if err := nfc.Create(name, attributes); err != nil {
+		return err
+	}
+
+	return nfc.conn.Flush()
+}
+
+func (nfc *nfChains) Delete(name string) error {
+	nfc.Lock()
+	defer nfc.Unlock()
+	if ch, ok := nfc.chains[name]; ok {
+		nfc.conn.DelChain(ch.chain)
+		delete(nfc.chains, name)
+	}
+
+	return nil
+}
+
+func (nfc *nfChains) DeleteImm(name string) error {
+	if err := nfc.Delete(name); err != nil {
+		return err
+	}
+
+	return nfc.conn.Flush()
 }
 
 func (nfc *nfChains) Dump() ([]byte, error) {

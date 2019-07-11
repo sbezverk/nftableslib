@@ -55,6 +55,10 @@ func (m *Mock) AddChain(c *nftables.Chain) *nftables.Chain {
 	return c
 }
 
+// DelChain not used
+func (m *Mock) DelChain(c *nftables.Chain) {
+}
+
 // AddSet not used
 func (m *Mock) AddSet(s *nftables.Set, se []nftables.SetElement) error {
 	return nil

@@ -26,9 +26,40 @@ func TestDeleteNFTable(t *testing.T) {
 	}
 	nft := InitNFTables(conn)
 	nft.Tables().Create("filter", nftables.TableFamilyIPv4)
-	nft.Tables().Delete("filter", nftables.TableFamilyIPv4)
+	nft.Tables().DeleteImm("filter", nftables.TableFamilyIPv4)
 	exist := nft.Tables().Exist("filter", nftables.TableFamilyIPv4)
 	if exist {
 		t.Fatalf("expected table %s of type %v not exist, but it does", "filter", nftables.TableFamilyIPv4)
+	}
+}
+
+func TestCreateExistingNFTable(t *testing.T) {
+	conn := InitConn()
+	if conn == nil {
+		t.Fatal("initialization of netlink connection failed")
+	}
+	nft := InitNFTables(conn)
+	if err := nft.Tables().Create("filter", nftables.TableFamilyIPv4); err != nil {
+		t.Fatalf("test \"TestCreateExistingNFTable\" failed to create table filter with error: %+v", err)
+	}
+	// Attempting to create the same table
+	if err := nft.Tables().Create("filter", nftables.TableFamilyIPv4); err == nil {
+		t.Fatalf("test \"TestCreateExistingNFTable\" failed as creation of the table was expected to fail but it has succeeded")
+	}
+}
+
+func BenchmarkCreateTable(b *testing.B) {
+	conn := InitConn()
+	if conn == nil {
+		b.Fatal("initialization of netlink connection failed")
+	}
+	nft := InitNFTables(conn)
+	for i := 0; i < b.N; i++ {
+		if err := nft.Tables().Create("filter", nftables.TableFamilyIPv4); err != nil {
+			b.Fatalf("test \"TestCreateExistingNFTable\" failed to create table filter with error: %+v", err)
+		}
+		if err := nft.Tables().Delete("filter", nftables.TableFamilyIPv4); err != nil {
+			b.Fatalf("test \"TestCreateExistingNFTable\" failed to delete table filter with error: %+v", err)
+		}
 	}
 }
