@@ -28,6 +28,7 @@ type RulesInterface interface {
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
 	Create(string, *Rule) (uint32, error)
+	Delete(uint32) error
 	Insert(string, *Rule, uint64) (uint32, error)
 	Dump() ([]byte, error)
 	UpdateRulesHandle() error
@@ -106,6 +107,22 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	nfr.conn.AddRule(r)
 
 	return rr.id, nil
+}
+
+func (nfr *nfRules) Delete(id uint32) error {
+	r, err := getRuleByID(nfr.rules, id)
+	if err != nil {
+		return err
+	}
+	// If rule's handle is 0, it means it has not been already programmed
+	// then no reason to call netfilter module
+	if r.rule.Handle != 0 {
+		if err := nfr.conn.DelRule(r.rule); err != nil {
+			return err
+		}
+	}
+
+	return nfr.removeRule(r.id)
 }
 
 // Insert inserts a rule passed as a parameter before the rule which handle value matches

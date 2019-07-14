@@ -13,6 +13,7 @@ type Interface interface {
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
+	DelRule(*nftables.Rule) error
 	AddSet(*nftables.Set, []nftables.SetElement) error
 	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
 }
@@ -39,6 +40,11 @@ func (m *Mock) FlushRuleset() {
 // AddRule not use
 func (m *Mock) AddRule(r *nftables.Rule) *nftables.Rule {
 	return r
+}
+
+// DelRule not used
+func (m *Mock) DelRule(*nftables.Rule) error {
+	return nil
 }
 
 // DelTable not used

@@ -17,6 +17,7 @@ type NetNS interface {
 	AddTable(*nftables.Table) *nftables.Table
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
+	DelRule(*nftables.Rule) error
 	AddSet(*nftables.Set, []nftables.SetElement) error
 	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
 }

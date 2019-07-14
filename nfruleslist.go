@@ -91,3 +91,13 @@ func getLast(e *nfRule) *nfRule {
 	}
 	return getLast(e.next)
 }
+
+func getRuleByID(e *nfRule, id uint32) (*nfRule, error) {
+	if e == nil {
+		return nil, fmt.Errorf("rule with id %d not found", id)
+	}
+	if e.rule.RuleID == id {
+		return e, nil
+	}
+	return getRuleByID(e.next, id)
+}
