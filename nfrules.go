@@ -28,8 +28,11 @@ type RulesInterface interface {
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
 	Create(string, *Rule) (uint32, error)
+	CreateImm(string, *Rule) (uint32, error)
 	Delete(uint32) error
+	DeleteImm(uint32) error
 	Insert(string, *Rule, uint64) (uint32, error)
+	InsertImm(string, *Rule, uint64) (uint32, error)
 	Dump() ([]byte, error)
 	UpdateRulesHandle() error
 	GetRuleHandle(id uint32) (uint64, error)
@@ -109,6 +112,28 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	return rr.id, nil
 }
 
+func (nfr *nfRules) CreateImm(name string, rule *Rule) (uint32, error) {
+	id, err := nfr.Create(name, rule)
+	if err != nil {
+		return 0, err
+	}
+
+	// Programming rule
+	if err := nfr.conn.Flush(); err != nil {
+		return 0, nil
+	}
+	// Getting rule's handle allocated by the kernel
+	handle, err := nfr.GetRuleHandle(id)
+	if err != nil {
+		return 0, nil
+	}
+	if err := nfr.UpdateRuleHandleByID(id, handle); err != nil {
+		return 0, nil
+	}
+
+	return id, nil
+}
+
 func (nfr *nfRules) Delete(id uint32) error {
 	r, err := getRuleByID(nfr.rules, id)
 	if err != nil {
@@ -123,6 +148,15 @@ func (nfr *nfRules) Delete(id uint32) error {
 	}
 
 	return nfr.removeRule(r.id)
+}
+
+func (nfr *nfRules) DeleteImm(id uint32) error {
+	if err := nfr.Delete(id); err != nil {
+		return err
+	}
+
+	// Programming rule's deleteion
+	return nfr.conn.Flush()
 }
 
 // Insert inserts a rule passed as a parameter before the rule which handle value matches
@@ -183,6 +217,27 @@ func (nfr *nfRules) Insert(name string, rule *Rule, position uint64) (uint32, er
 	return rr.id, nil
 }
 
+func (nfr *nfRules) InsertImm(name string, rule *Rule, position uint64) (uint32, error) {
+	id, err := nfr.Insert(name, rule, position)
+	if err != nil {
+		return 0, err
+	}
+	// Programming rule
+	if err := nfr.conn.Flush(); err != nil {
+		return 0, nil
+	}
+	// Getting rule's handle allocated by the kernel
+	handle, err := nfr.GetRuleHandle(id)
+	if err != nil {
+		return 0, nil
+	}
+	if err := nfr.UpdateRuleHandleByID(id, handle); err != nil {
+		return 0, nil
+	}
+
+	return id, nil
+}
+
 func (nfr *nfRules) Dump() ([]byte, error) {
 	nfr.Lock()
 	defer nfr.Unlock()
@@ -210,7 +265,22 @@ func (nfr *nfRules) UpdateRulesHandle() error {
 		}
 		r.rule.Handle = handle
 	}
+
 	return nil
+}
+
+func (nfr *nfRules) UpdateRuleHandleByID(id uint32, handle uint64) error {
+	r := nfr.rules
+	for ; r != nil; r = r.next {
+		if r.id == id {
+			nfr.rules.Lock()
+			defer nfr.rules.Unlock()
+			r.rule.Handle = handle
+			return nil
+		}
+	}
+
+	return fmt.Errorf("rule id %d is not found", id)
 }
 
 // GetRuleHandle gets a handle of rule specified by its id
