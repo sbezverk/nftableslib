@@ -85,6 +85,11 @@ func main() {
     // Creating nf table for IPv4 family
 	ti.Tables().Create("ipv4table", nftables.TableFamilyIPv4)
 
+    // Alternatively ti.Tables().CreateImm("ipv4table", nftables.TableFamilyIPv4) could be 
+    // used which does not require following conn.Flush()
+    // There is CreateImm api call for tables, chains and rules following the same pattern, the result of calling them
+    // would be immediate programming in kernel table,chain or a rule.
+
 	// Pushing table config to nf tables module
     // Pushing config after each create is not mandatory, it is done for debugging purposes.
 	if err := conn.Flush(); err != nil {
