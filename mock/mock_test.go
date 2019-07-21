@@ -18,12 +18,39 @@ func TestMock(t *testing.T) {
 	port2 := uint16(9090)
 	port3 := uint16(8989)
 	portRedirect := uint16(15001)
+	proto := uint32(unix.IPPROTO_TCP)
 
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
 		success bool
 	}{
+		{
+			name: "L3 redirect proto no TProxy",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Protocol: &proto,
+				},
+				Redirect: &nftableslib.Redirect{
+					Port:   portRedirect,
+					TProxy: false,
+				},
+			},
+			success: true,
+		},
+		{
+			name: "L3 redirect proto with TProxy",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Protocol: &proto,
+				},
+				Redirect: &nftableslib.Redirect{
+					Port:   portRedirect,
+					TProxy: true,
+				},
+			},
+			success: true,
+		},
 		{
 			name: "Single IPv4 in list, source, no exclusion, with subnet mask",
 			rule: nftableslib.Rule{

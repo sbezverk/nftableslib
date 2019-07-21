@@ -1,17 +1,14 @@
 package nftableslib
 
 import (
-	"net"
 	"testing"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/google/nftables/expr"
 )
 
 func TestRule(t *testing.T) {
-	ipv4Mask := uint8(24)
-	ipVersion := byte(4)
+	//	ipv4Mask := uint8(24)
+	//	ipVersion := byte(4)
 	ipProtocol := uint32(unix.IPPROTO_TCP)
 	tests := []struct {
 		name    string
@@ -24,42 +21,42 @@ func TestRule(t *testing.T) {
 			rule:    &Rule{},
 			success: false,
 		},
-		{
-			name: "Good L3",
-			rule: &Rule{
-				L3: &L3Rule{
-					Src: &IPAddrSpec{
-						List: []*IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.0"),
+		/*		{
+					name: "Good L3",
+					rule: &Rule{
+						L3: &L3Rule{
+							Src: &IPAddrSpec{
+								List: []*IPAddr{
+									{
+										&net.IPAddr{
+											IP: net.ParseIP("192.0.2.0"),
+										},
+										true,
+										&ipv4Mask,
+									},
 								},
-								true,
-								&ipv4Mask,
 							},
 						},
+						Verdict: &expr.Verdict{
+							Kind: expr.VerdictKind(unix.NFT_RETURN),
+						},
 					},
+					success: true,
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
+				{
+					name: "Good L3 Version Only",
+					rule: &Rule{
+						L3: &L3Rule{
+							Version: &ipVersion,
+						},
+						Verdict: &expr.Verdict{
+							Kind: expr.VerdictKind(unix.NFT_RETURN),
+						},
+					},
+					success: true,
 				},
-			},
-			success: true,
-		},
-		{
-			name: "Good L3 Version Only",
-			rule: &Rule{
-				L3: &L3Rule{
-					Version: &ipVersion,
-				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
-			},
-			success: true,
-		},
-		{
-			name: "Good L3 Protocol with Redicrect",
+		*/{
+			name: "Good L3 Protocol with Redicrect TProxy",
 			rule: &Rule{
 				L3: &L3Rule{
 					Protocol: &ipProtocol,
@@ -72,41 +69,54 @@ func TestRule(t *testing.T) {
 			success: true,
 		},
 		{
-			name: "Redirect Only",
+			name: "Good L3 Protocol with Redicrect non TProxy",
 			rule: &Rule{
+				L3: &L3Rule{
+					Protocol: &ipProtocol,
+				},
 				Redirect: &Redirect{
 					Port:   uint16(50000),
-					TProxy: true,
-				},
-			},
-			success: false,
-		},
-		{
-			name: "Verdict Only",
-			rule: &Rule{
-
-				Verdict: &expr.Verdict{
-					Kind:  expr.VerdictKind(unix.NFT_JUMP),
-					Chain: "test-chain",
+					TProxy: false,
 				},
 			},
 			success: true,
 		},
+		/*		{
+					name: "Redirect Only",
+					rule: &Rule{
+						Redirect: &Redirect{
+							Port:   uint16(50000),
+							TProxy: true,
+						},
+					},
+					success: false,
+				},
+				{
+					name: "Verdict Only",
+					rule: &Rule{
 
-		{
-			name: "Redirect and Verdict",
-			rule: &Rule{
-				Redirect: &Redirect{
-					Port:   uint16(50000),
-					TProxy: true,
+						Verdict: &expr.Verdict{
+							Kind:  expr.VerdictKind(unix.NFT_JUMP),
+							Chain: "test-chain",
+						},
+					},
+					success: true,
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
+
+				{
+					name: "Redirect and Verdict",
+					rule: &Rule{
+						Redirect: &Redirect{
+							Port:   uint16(50000),
+							TProxy: true,
+						},
+						Verdict: &expr.Verdict{
+							Kind: expr.VerdictKind(unix.NFT_RETURN),
+						},
+					},
+					success: false,
 				},
-			},
-			success: false,
-		},
-	}
+		*/}
 
 	for _, tt := range tests {
 		err := tt.rule.Validate()
