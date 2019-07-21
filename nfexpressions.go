@@ -386,17 +386,16 @@ func buildMask(length int, maskLength uint8) []byte {
 	fullBytes := maskLength / 8
 	leftBits := maskLength % 8
 	for i := 0; i < int(fullBytes); i++ {
-		mask[i] = 0x00
+		mask[i] = 0xff
 	}
-	for i := 0; i < (length-int(fullBytes))-1; i++ {
-		mask[length-i-1] = 0xff
-	}
-	if fullBytes != 0 {
-		v := uint8(1)
-		for i := 0; i < 8-int(leftBits); i++ {
-			mask[fullBytes] ^= v
-			v = (v << 1)
+	if leftBits != 0 {
+		m := uint8(0x80)
+		v := uint8(0x00)
+		for i := 0; i < int(leftBits); i++ {
+			v += m
+			m = (m >> 1)
 		}
+		mask[fullBytes] ^= v
 	}
 	return mask
 }
