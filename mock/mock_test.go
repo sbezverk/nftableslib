@@ -12,7 +12,7 @@ import (
 )
 
 func TestMock(t *testing.T) {
-	ipv4Mask := uint8(12)
+	ipv4Mask := uint8(19)
 	ipv6Mask := uint8(64)
 	port1 := uint16(8080)
 	port2 := uint16(9090)
@@ -236,6 +236,7 @@ func TestMock(t *testing.T) {
 			success: true,
 		},
 	}
+	ipv6LoopbackMask := uint8(128)
 	ipv6Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -253,6 +254,29 @@ func TestMock(t *testing.T) {
 								},
 								false,
 								nil,
+							},
+						},
+					},
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
+				},
+				Exclude: false,
+			},
+			success: true,
+		},
+		{
+			name: "Single IPv6 in list, source, no exclusion, CIDR",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{
+							{
+								&net.IPAddr{
+									IP: net.ParseIP("::1"),
+								},
+								true,
+								&ipv6LoopbackMask,
 							},
 						},
 					},
