@@ -26,6 +26,22 @@ func TestMock(t *testing.T) {
 		success bool
 	}{
 		{
+			name: "L3 Redirect and Verdict",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Protocol: &proto,
+				},
+				Redirect: &nftableslib.Redirect{
+					Port:   portRedirect,
+					TProxy: false,
+				},
+				Verdict: &expr.Verdict{
+					Kind: expr.VerdictKind(unix.NFT_JUMP),
+				},
+			},
+			success: false,
+		},
+		{
 			name: "L3 redirect proto no TProxy",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
