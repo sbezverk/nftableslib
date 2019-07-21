@@ -22,73 +22,20 @@ func createL4(family nftables.TableFamily, rule *Rule, set *nftables.Set) (*nfta
 		rulePort = l4.Dst
 		offset = 2
 	}
-	if rulePort == nil {
-		return nil, nil, fmt.Errorf("both source and destination ports are nil")
-	}
-	if rule.Redirect != nil {
-		re, se, err := processPortRedirect(family, l4.L4Proto, offset, rulePort, rule.Redirect, rule.Exclude, set)
-		if err != nil {
-			return nil, nil, err
-		}
-		return &nftables.Rule{Exprs: re}, se, nil
-	}
-	if rule.Verdict != nil {
-		re, se, err := processL4Port(l4.L4Proto, offset, rulePort, rule.Exclude, set)
-		if err != nil {
-			return nil, nil, err
-		}
-		re = append(re, rule.Verdict)
-		return &nftables.Rule{Exprs: re}, se, nil
-	}
 
-	return nil, nil, fmt.Errorf("No Verdict or Redirect specified")
-}
-
-func processPortRedirect(family nftables.TableFamily, l4proto uint8, offset uint32, port *Port, redirect *Redirect, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
 	re := []expr.Any{}
 	se := []nftables.SetElement{}
 	var err error
 	processed := false
-	if len(port.List) != 0 {
-		re, se, err = processPortList(l4proto, offset, port.List, excl, set)
+	if len(rulePort.List) != 0 {
+		re, se, err = processPortList(l4.L4Proto, offset, rulePort.List, rule.Exclude, set)
 		if err != nil {
 			return nil, nil, err
 		}
 		processed = true
 	}
-	if port.Range[0] != nil && port.Range[1] != nil {
-		re, _, err = processPortRange(l4proto, offset, port.Range, excl)
-		if err != nil {
-			return nil, nil, err
-		}
-		processed = true
-	}
-	if !processed {
-		return nil, nil, fmt.Errorf("both port list and port range are nil")
-	}
-	if redirect.TProxy {
-		re = append(re, getExprForTProxyRedirect(redirect.Port, family)...)
-	} else {
-		re = append(re, getExprForRedirectPort(redirect.Port)...)
-	}
-
-	return re, se, nil
-}
-
-func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
-	re := []expr.Any{}
-	se := []nftables.SetElement{}
-	var err error
-	processed := false
-	if len(port.List) != 0 {
-		re, se, err = processPortList(l4proto, offset, port.List, exclude, set)
-		if err != nil {
-			return nil, nil, err
-		}
-		processed = true
-	}
-	if port.Range[0] != nil && port.Range[1] != nil {
-		re, _, err = processPortRange(l4proto, offset, port.Range, exclude)
+	if rulePort.Range[0] != nil && rulePort.Range[1] != nil {
+		re, _, err = processPortRange(l4.L4Proto, offset, rulePort.Range, rule.Exclude)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -98,7 +45,7 @@ func processL4Port(l4proto uint8, offset uint32, port *Port, exclude bool, set *
 		return nil, nil, fmt.Errorf("both port list and port range are nil")
 	}
 
-	return re, se, nil
+	return &nftables.Rule{Exprs: re}, se, nil
 }
 
 func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {

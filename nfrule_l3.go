@@ -18,12 +18,6 @@ func createL3(l3proto nftables.TableFamily, rule *Rule, set *nftables.Set) (*nft
 		if err != nil {
 			return nil, nil, err
 		}
-		if rule.Redirect != nil && rule.Redirect.TProxy {
-			re = append(re, getExprForTProxyRedirect(rule.Redirect.Port, l3proto)...)
-		} else if rule.Verdict != nil {
-			re = append(re, rule.Verdict)
-		}
-
 		return &nftables.Rule{Exprs: re}, se, nil
 	}
 	// IPv4 source address offset - 12, destination address offset - 16
@@ -56,30 +50,31 @@ func createL3(l3proto nftables.TableFamily, rule *Rule, set *nftables.Set) (*nft
 			return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 		}
 	}
-	if ruleAddr == nil {
-		return nil, nil, fmt.Errorf("both source and destination are nil")
-	}
-	if len(ruleAddr.List) != 0 {
-		re, se, err = processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, set)
-		if err != nil {
-			return nil, nil, err
+	if ruleAddr != nil {
+		if len(ruleAddr.List) != 0 {
+			re, se, err = processAddrList(l3proto, addrOffset, ruleAddr.List, rule.Exclude, set)
+			if err != nil {
+				return nil, nil, err
+			}
+			processed = true
 		}
-		processed = true
+		if ruleAddr.Range[0] != nil && ruleAddr.Range[1] != nil {
+			re, se, err = processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude)
+			if err != nil {
+				return nil, nil, err
+			}
+			processed = true
+		}
 	}
-	if ruleAddr.Range[0] != nil && ruleAddr.Range[1] != nil {
-		re, se, err = processAddrRange(l3proto, addrOffset, ruleAddr.Range, rule.Exclude)
+	if l3.Protocol != nil {
+		re, se, err = processProtocol(l3proto, *l3.Protocol, rule.Exclude)
 		if err != nil {
 			return nil, nil, err
 		}
 		processed = true
 	}
 	if !processed {
-		return nil, nil, fmt.Errorf("address list, address range are empry")
-	}
-	if rule.Redirect != nil && rule.Redirect.TProxy {
-		re = append(re, getExprForTProxyRedirect(rule.Redirect.Port, l3proto)...)
-	} else if rule.Verdict != nil {
-		re = append(re, rule.Verdict)
+		return nil, nil, fmt.Errorf("invalid L3 rule as none of L3 parameters are provided")
 	}
 
 	return &nftables.Rule{Exprs: re}, se, nil
@@ -131,6 +126,15 @@ func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAdd
 
 func processVersion(version byte, excl bool) ([]expr.Any, []nftables.SetElement, error) {
 	re, err := getExprForIPVersion(version, excl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return re, nil, nil
+}
+
+func processProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) ([]expr.Any, []nftables.SetElement, error) {
+	re, err := getExprForProtocol(l3proto, proto, excl)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -177,6 +177,15 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(fmt.Sprintf("\"%#x\"}", e.Flags))...)
 		return b, nil
 	}
+	if e, ok := exp.(*expr.TProxy); ok {
+		b = append(b, []byte("{\"Family\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Family))...)
+		b = append(b, []byte(",\"TableFamily\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.TableFamily))...)
+		b = append(b, []byte(",\"RegPort\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%#x\"}", e.RegPort))...)
+		return b, nil
+	}
 	if e, ok := exp.(*expr.Lookup); ok {
 		b = append(b, []byte("{\"SourceRegister\":")...)
 		b = append(b, []byte(fmt.Sprintf("%d", e.SourceRegister))...)
