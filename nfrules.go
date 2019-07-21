@@ -84,14 +84,24 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	// Case when Rule would consist of just Verdict
+	// If L3Rule or L4Rule did not produce a rule, initialize one to carry
+	// Rule's Action expression
 	if r == nil {
+		r = &nftables.Rule{}
 		re := []expr.Any{}
-		re = append(re, rule.Verdict)
-		r = &nftables.Rule{
-			Exprs: re,
-		}
+		r.Exprs = re
 	}
+	if rule.Redirect != nil {
+		if rule.Redirect.TProxy {
+			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Redirect.Port, nfr.table.Family)...)
+		} else {
+			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Redirect.Port, nfr.table.Family)...)
+		}
+
+	} else if rule.Verdict != nil {
+		r.Exprs = append(r.Exprs, rule.Verdict)
+	}
+
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
@@ -187,6 +197,7 @@ func (nfr *nfRules) Insert(name string, rule *Rule, position uint64) (uint32, er
 		return 0, err
 	}
 	// Case when Rule would consist of just Verdict
+	// TODO
 	if r == nil {
 		re := []expr.Any{}
 		re = append(re, rule.Verdict)
@@ -377,6 +388,8 @@ func (l3 *L3Rule) Validate() error {
 		}
 	case l3.Version != nil:
 	case l3.Protocol != nil:
+	default:
+		return fmt.Errorf("invalid L3 rule as none of L3 parameters are provided")
 	}
 
 	return nil

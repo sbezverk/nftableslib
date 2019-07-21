@@ -258,6 +258,18 @@ func getExprForTProxyRedirect(port uint16, family nftables.TableFamily) []expr.A
 	return re
 }
 
+func getExprForRedirect(port uint16, family nftables.TableFamily) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.BigEndian.PutUint16(port)})
+	re = append(re,
+		&expr.Redir{
+			RegisterProtoMin: 1,
+			RegisterProtoMax: 1,
+		})
+
+	return re
+}
+
 func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, error) {
 	// [ meta load l4proto => reg 1 ]
 	// [ cmp eq reg 1 0x00000006 ]
@@ -328,6 +340,42 @@ func getExprForIPVersion(version byte, excl bool) ([]expr.Any, error) {
 		Op:       expr.CmpOpEq,
 		Register: 1,
 		Data:     []byte{(version << 4)},
+	})
+
+	return re, nil
+}
+
+func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) ([]expr.Any, error) {
+	re := []expr.Any{}
+	if l3proto == nftables.TableFamilyIPv4 {
+		// IPv4
+		// [ payload load 1b @ network header + 9 => reg 1 ]
+		re = append(re, &expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       9, // Offset for a L4 protocol
+			Len:          1, // 1 byte for L4 protocol
+		})
+	} else {
+		// IPv6
+		//	[ payload load 1b @ network header + 6 => reg 1 ]
+		re = append(re, &expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       6, // Offset for a L4 protocol
+			Len:          1, // 1 byte for L4 protocol
+		})
+	}
+
+	if excl {
+		// TODO
+		return re, nil
+	}
+	// [ cmp eq reg 1 0x00000006 ]
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     binaryutil.NativeEndian.PutUint32(proto),
 	})
 
 	return re, nil
