@@ -130,15 +130,15 @@ func (nfr *nfRules) CreateImm(name string, rule *Rule) (uint32, error) {
 
 	// Programming rule
 	if err := nfr.conn.Flush(); err != nil {
-		return 0, nil
+		return 0, err
 	}
 	// Getting rule's handle allocated by the kernel
 	handle, err := nfr.GetRuleHandle(id)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	if err := nfr.UpdateRuleHandleByID(id, handle); err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	return id, nil
@@ -235,15 +235,15 @@ func (nfr *nfRules) InsertImm(name string, rule *Rule, position uint64) (uint32,
 	}
 	// Programming rule
 	if err := nfr.conn.Flush(); err != nil {
-		return 0, nil
+		return 0, err
 	}
 	// Getting rule's handle allocated by the kernel
 	handle, err := nfr.GetRuleHandle(id)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	if err := nfr.UpdateRuleHandleByID(id, handle); err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	return id, nil

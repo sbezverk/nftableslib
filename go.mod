@@ -13,3 +13,5 @@ require (
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20190719005602-e377ae9d6386 // indirect
 )
+
+replace github.com/google/nftables => ../../nftables
