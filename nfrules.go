@@ -91,13 +91,16 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 		re := []expr.Any{}
 		r.Exprs = re
 	}
+	// Check if Meta is specified appending to rule's list of expressions
+	if rule.Meta != nil {
+		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
+	}
 	if rule.Redirect != nil {
 		if rule.Redirect.TProxy {
 			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Redirect.Port, nfr.table.Family)...)
 		} else {
 			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Redirect.Port, nfr.table.Family)...)
 		}
-
 	} else if rule.Verdict != nil {
 		r.Exprs = append(r.Exprs, rule.Verdict)
 	}
@@ -452,10 +455,17 @@ type Redirect struct {
 	TProxy bool
 }
 
+// Meta defines parameters used to build nft meta expression
+type Meta struct {
+	Key   uint32
+	Value []byte
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
 	L3       *L3Rule
 	L4       *L4Rule
+	Meta     *Meta
 	Verdict  *expr.Verdict
 	Exclude  bool
 	Redirect *Redirect
