@@ -70,8 +70,11 @@ github.com/google/nftables v0.0.0-20190711123038-d6b200080012 h1:2UlJkOfMrlUjdEN
 github.com/google/nftables v0.0.0-20190711123038-d6b200080012/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
 github.com/google/nftables v0.0.0-20190714124903-635111f591b9 h1:nbLXPb9hzY6umxDH6ZdEUBAIbL6LacGeBKyeUVWZBhE=
 github.com/google/nftables v0.0.0-20190714124903-635111f591b9/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
+github.com/google/nftables v0.0.0-20190720163532-72bd788b1118/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
 github.com/google/nftables v0.0.0-20190720163532-c123f7dc7d72 h1:bwiOeg7L1PN6K5KvwP0UWRMPlJ1zUvx4RcnONx2mTcs=
 github.com/google/nftables v0.0.0-20190720163532-c123f7dc7d72/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
+github.com/google/nftables v0.0.0-20190723031257-72bd788b1118 h1:Ou8gfoTDDjkQ8i65sRseiV5ye7WsvnDDgkbqUaQ3C50=
+github.com/google/nftables v0.0.0-20190723031257-72bd788b1118/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
 github.com/google/pprof v0.0.0-20181206194817-3ea8567a2e57/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/pprof v0.0.0-20190515194954-54271f7e092f/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
@@ -303,6 +306,7 @@ golang.org/x/tools v0.0.0-20190708151858-60762fc531e6/go.mod h1:jcCCGcm9btYwXyDq
 golang.org/x/tools v0.0.0-20190710184609-286818132824/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
 golang.org/x/tools v0.0.0-20190712213246-8b927904ee0d/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
 golang.org/x/tools v0.0.0-20190719005602-e377ae9d6386/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
+golang.org/x/tools v0.0.0-20190723021737-8bb11ff117ca/go.mod h1:jcCCGcm9btYwXyDqrUWc6MKQKKGJCWEQ3AfLSRIbEuI=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/api v0.7.0/go.mod h1:WtwebWUNSVBH/HAw79HIFXZNqEvBhG+Ra+ax0hx3E3M=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=

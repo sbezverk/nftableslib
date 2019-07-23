@@ -381,6 +381,18 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) (
 	return re, nil
 }
 
+func getExprForMeta(meta *Meta) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKey(meta.Key), Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     meta.Value,
+	})
+
+	return re
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8
