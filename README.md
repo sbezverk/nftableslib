@@ -13,12 +13,14 @@ Rule contains parameters for a rule to configure L3(ip/ipv6), L4(tcp/udp/port) p
 type Rule struct {
     L3      *L3Rule
     L4      *L4Rule
+    Meta    *Meta
     Verdict *expr.Verdict
     Redirect *uint32
     Exclude bool
 }
 ```
-
+**Meta** Allows to specify additional matching criteria, for more details on supported keys, see [Meta Expressions section in nft man document](https://www.netfilter.org/projects/nftables/manpage.html)
+ 
 **Verdict** defines an action to take when condition is met. In some cases **Verdict** can be used without any conditions to be the last action in the chain. Example, when chain has default policy of Accept, but you want the traffic which did not match any condition to be dropped.
 
 **Exclude** flag is true when the condition specified by the rules should be inverted. Example, L4 condition specifies match on tcp traffic for a range of ports 1025-1028, setting **Exclude** to *true* will match every tcp port with the exception of the ports specified in the range. 
