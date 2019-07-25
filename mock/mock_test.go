@@ -1,24 +1,43 @@
 package mock
 
 import (
-	"net"
 	"strconv"
 	"testing"
 
 	"github.com/google/nftables"
-	"github.com/google/nftables/expr"
 	"github.com/sbezverk/nftableslib"
 	"golang.org/x/sys/unix"
 )
 
+func setActionRedirect(t *testing.T, port int, tproxy bool) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetRedirect(port, tproxy)
+	if err != nil {
+		t.Fatalf("failed to SetRedirect with error: %+v", err)
+	}
+	return ra
+}
+
+func setActionVerdict(t *testing.T, key int, chain ...string) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetVerdict(key, chain...)
+	if err != nil {
+		t.Fatalf("failed to SetVerdict with error: %+v", err)
+	}
+	return ra
+}
+
+func setIPAddr(t *testing.T, addr string) *nftableslib.IPAddr {
+	a, err := nftableslib.NewIPAddr(addr)
+	if err != nil {
+		t.Fatalf("error %+v return from NewIPAddr for address: %s", err, addr)
+	}
+	return a
+}
+
 func TestMock(t *testing.T) {
-	ipv4Mask := uint8(19)
-	ipv6Mask := uint8(64)
-	port1 := uint16(8080)
-	port2 := uint16(9090)
-	port3 := uint16(8989)
-	portRedirect := uint16(15001)
-	proto := uint32(unix.IPPROTO_TCP)
+	port1 := 8080
+	port2 := 9090
+	port3 := 8989
+	portRedirect := 15001
 
 	ipv4Tests := []struct {
 		name    string
@@ -26,31 +45,12 @@ func TestMock(t *testing.T) {
 		success bool
 	}{
 		{
-			name: "L3 Redirect and Verdict",
-			rule: nftableslib.Rule{
-				L3: &nftableslib.L3Rule{
-					Protocol: &proto,
-				},
-				Redirect: &nftableslib.Redirect{
-					Port:   portRedirect,
-					TProxy: false,
-				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
-			},
-			success: false,
-		},
-		{
 			name: "L3 redirect proto no TProxy",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Protocol: &proto,
+					Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
 				},
-				Redirect: &nftableslib.Redirect{
-					Port:   portRedirect,
-					TProxy: false,
-				},
+				Action: setActionRedirect(t, portRedirect, false),
 			},
 			success: true,
 		},
@@ -58,12 +58,9 @@ func TestMock(t *testing.T) {
 			name: "L3 redirect proto with TProxy",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
-					Protocol: &proto,
+					Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
 				},
-				Redirect: &nftableslib.Redirect{
-					Port:   portRedirect,
-					TProxy: true,
-				},
+				Action: setActionRedirect(t, portRedirect, true),
 			},
 			success: true,
 		},
@@ -72,20 +69,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.0"),
-								},
-								true,
-								&ipv4Mask,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0/19")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -95,20 +82,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.1"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -118,20 +95,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.1"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.1")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: true,
 			},
 			success: true,
@@ -141,32 +108,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.1"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.3.1"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.4.1"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.1"), setIPAddr(t, "192.0.3.1"), setIPAddr(t, "192.0.4.1")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: true,
 			},
 			success: true,
@@ -176,32 +121,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.2.1"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.3.1"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("192.0.4.1"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.1"), setIPAddr(t, "192.0.3.1"), setIPAddr(t, "192.0.4.1")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -211,32 +134,15 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						Range: [2]*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("1.1.1.0"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("2.2.2.0"),
-								},
-								false,
-								nil,
-							},
-						},
+						Range: [2]*nftableslib.IPAddr{setIPAddr(t, "1.1.1.0"), setIPAddr(t, "2.2.2.0")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
 		},
 	}
-	ipv6LoopbackMask := uint8(128)
 	ipv6Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -247,20 +153,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("2001:0101::1"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:0101::1")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -270,20 +166,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("::1"),
-								},
-								true,
-								&ipv6LoopbackMask,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "::1/128")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -293,20 +179,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("2001:0101::"),
-								},
-								true,
-								&ipv6Mask,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:0101::/64")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -316,20 +192,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "fe80::1852:15be:a31d:5d2f")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: true,
 			},
 			success: true,
@@ -339,26 +205,10 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("2001:0101::1"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("fe80::1852:15be:a31d:5d2f"),
-								},
-								false,
-								nil,
-							},
-						},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:0101::1"), setIPAddr(t, "fe80::1852:15be:a31d:5d2f")},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: true,
 			},
 			success: true,
@@ -369,31 +219,13 @@ func TestMock(t *testing.T) {
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
 						List: []*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("2001:470:b87e:81::11"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("fe80::5054:ff:fe6c:1c4d"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("fe80::5054:ff:fecd:2379"),
-								},
-								false,
-								nil,
-							},
+							setIPAddr(t, "2001:470:b87e:81::11"),
+							setIPAddr(t, "fe80::5054:ff:fe6c:1c4d"),
+							setIPAddr(t, "fe80::5054:ff:fecd:2379"),
 						},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_JUMP),
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 				Exclude: false,
 			},
 			success: true,
@@ -404,26 +236,12 @@ func TestMock(t *testing.T) {
 				L3: &nftableslib.L3Rule{
 					Dst: &nftableslib.IPAddrSpec{
 						Range: [2]*nftableslib.IPAddr{
-							{
-								&net.IPAddr{
-									IP: net.ParseIP("2001:470:b87e:81::11"),
-								},
-								false,
-								nil,
-							}, {
-								&net.IPAddr{
-									IP: net.ParseIP("2001:470:b87e:89::11"),
-								},
-								false,
-								nil,
-							},
+							setIPAddr(t, "2001:470:b87e:81::11"),
+							setIPAddr(t, "2001:470:b87e:89::11"),
 						},
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind:  expr.VerdictKind(unix.NFT_JUMP),
-					Chain: "fake_chain_1",
-				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake_chain_1"),
 				Exclude: false,
 			},
 			success: true,
@@ -441,15 +259,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Src: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-						},
+						List: nftableslib.SetPortList([]int{port1}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind:  expr.VerdictKind(unix.NFT_JUMP),
-					Chain: "fake_chain_1",
-				},
+				Action: setActionVerdict(t, unix.NFT_JUMP, "fake_chain_1"),
 			},
 			success: true,
 		},
@@ -459,14 +272,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_UDP,
 					Src: &nftableslib.Port{
-						List: []*uint16{
-							&port2,
-						},
+						List: nftableslib.SetPortList([]int{port2}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action: setActionVerdict(t, unix.NFT_RETURN),
 			},
 			success: true,
 		},
@@ -476,14 +285,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-						},
+						List: nftableslib.SetPortList([]int{port1}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
 				Exclude: true,
 			},
 			success: true,
@@ -494,14 +299,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Src: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-						},
+						List: nftableslib.SetPortList([]int{port1}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action: setActionRedirect(t, portRedirect, false),
 			},
 			success: true,
 		},
@@ -511,14 +312,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_UDP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-						},
+						List: nftableslib.SetPortList([]int{port1}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action: setActionRedirect(t, portRedirect, false),
 			},
 			success: true,
 		},
@@ -528,14 +325,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-						},
+						List: nftableslib.SetPortList([]int{port1}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action:  setActionRedirect(t, portRedirect, false),
 				Exclude: true,
 			},
 			success: true,
@@ -546,16 +339,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-							&port2,
-							&port3,
-						},
+						List: nftableslib.SetPortList([]int{port1, port2, port3}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action:  setActionRedirect(t, portRedirect, false),
 				Exclude: false,
 			},
 			success: true,
@@ -566,15 +353,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-							&port2,
-						},
+						List: nftableslib.SetPortList([]int{port1, port2}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
 				Exclude: false,
 			},
 			success: true,
@@ -585,15 +367,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-							&port2,
-						},
+						List: nftableslib.SetPortList([]int{port1, port2}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action:  setActionRedirect(t, portRedirect, false),
 				Exclude: true,
 			},
 			success: true,
@@ -604,16 +381,11 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						List: []*uint16{
-							&port1,
-							&port2,
-						},
+						List: nftableslib.SetPortList([]int{port1, port2}),
 					},
 				},
 				Exclude: true,
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
 			},
 			success: true,
 		},
@@ -623,15 +395,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint16{
-							&port1,
-							&port2,
-						},
+						Range: nftableslib.SetPortRange([2]int{port1, port2}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action:  setActionRedirect(t, portRedirect, false),
 				Exclude: false,
 			},
 			success: true,
@@ -642,15 +409,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint16{
-							&port1,
-							&port2,
-						},
+						Range: nftableslib.SetPortRange([2]int{port1, port2}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
 				Exclude: false,
 			},
 			success: true,
@@ -661,15 +423,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint16{
-							&port1,
-							&port2,
-						},
+						Range: nftableslib.SetPortRange([2]int{port1, port2}),
 					},
 				},
-				Redirect: &nftableslib.Redirect{
-					Port: portRedirect,
-				},
+				Action:  setActionRedirect(t, portRedirect, false),
 				Exclude: true,
 			},
 			success: true,
@@ -680,15 +437,10 @@ func TestMock(t *testing.T) {
 				L4: &nftableslib.L4Rule{
 					L4Proto: unix.IPPROTO_TCP,
 					Dst: &nftableslib.Port{
-						Range: [2]*uint16{
-							&port1,
-							&port2,
-						},
+						Range: nftableslib.SetPortRange([2]int{port1, port2}),
 					},
 				},
-				Verdict: &expr.Verdict{
-					Kind: expr.VerdictKind(unix.NFT_RETURN),
-				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
 				Exclude: true,
 			},
 			success: true,
