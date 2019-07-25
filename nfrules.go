@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"golang.org/x/sys/unix"
 )
 
 // By some reason github.com/golang/unix does not define these constants but
@@ -95,14 +96,14 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	if rule.Meta != nil {
 		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
 	}
-	if rule.Redirect != nil {
-		if rule.Redirect.TProxy {
-			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Redirect.Port, nfr.table.Family)...)
+	if rule.Action.redirect != nil {
+		if rule.Action.redirect.tproxy {
+			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
 		} else {
-			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Redirect.Port, nfr.table.Family)...)
+			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
 		}
-	} else if rule.Verdict != nil {
-		r.Exprs = append(r.Exprs, rule.Verdict)
+	} else if rule.Action.verdict != nil {
+		r.Exprs = append(r.Exprs, rule.Action.verdict)
 	}
 
 	r.Table = nfr.table
@@ -203,7 +204,7 @@ func (nfr *nfRules) Insert(name string, rule *Rule, position uint64) (uint32, er
 	// TODO
 	if r == nil {
 		re := []expr.Any{}
-		re = append(re, rule.Verdict)
+		re = append(re, rule.Action.verdict)
 		r = &nftables.Rule{
 			Exprs: re,
 		}
@@ -321,6 +322,14 @@ type IPAddr struct {
 	Mask *uint8
 }
 
+// IsIPv6 is a helper function, it returns true if IPAddr struct holds IPv6 address, otherwise it returns true
+func (ip *IPAddr) IsIPv6() bool {
+	if ip.IP.To16() == nil {
+		return false
+	}
+	return true
+}
+
 // Validate checks validity of ip address and its parameters
 func (ip *IPAddr) Validate() error {
 	// If CIDR is not specified, there is nothing to validate
@@ -338,6 +347,36 @@ func (ip *IPAddr) Validate() error {
 type IPAddrSpec struct {
 	List  []*IPAddr
 	Range [2]*IPAddr
+}
+
+// NewIPAddr is a helper function which converts ip address into IPAddr format
+// required by IPAddrSpec. If CIDR format is specified, Mask will be set to address'
+// subnet mask and CIDR will e set to true
+func NewIPAddr(addr string) (*IPAddr, error) {
+	if ip, ipnet, err := net.ParseCIDR(addr); err == nil {
+		// Found a valid CIDR address
+		ones, _ := ipnet.Mask.Size()
+		mask := uint8(ones)
+		return &IPAddr{
+			&net.IPAddr{
+				IP: ip,
+			},
+			true,
+			&mask,
+		}, nil
+	}
+	// Check if addr is just ip address in a non CIDR format
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return nil, fmt.Errorf("%s is invalid ip address", addr)
+	}
+	return &IPAddr{
+		&net.IPAddr{
+			IP: ip,
+		},
+		false,
+		nil,
+	}, nil
 }
 
 // Validate checks IPAddrSpec struct
@@ -374,6 +413,13 @@ type L3Rule struct {
 	Protocol *uint32
 }
 
+// L3Protocol is a helper function to convert a value of L3 protocol
+// to the type required by L3Rule *uint32
+func L3Protocol(proto int) *uint32 {
+	p := uint32(proto)
+	return &p
+}
+
 // Validate checks parameters of L3Rule struct
 func (l3 *L3Rule) Validate() error {
 	// case when both Source and Destination is specified
@@ -402,6 +448,28 @@ func (l3 *L3Rule) Validate() error {
 type Port struct {
 	List  []*uint16
 	Range [2]*uint16
+}
+
+// SetPortList is a helper function which transforms a slice of int into
+// a format required by Port struct
+func SetPortList(ports []int) []*uint16 {
+	p := make([]*uint16, len(ports))
+	for i, port := range ports {
+		pp := uint16(port)
+		p[i] = &pp
+	}
+	return p
+}
+
+// SetPortRange is a helper function which transforms an 2 element array of int into
+// a format required by Port struct
+func SetPortRange(ports [2]int) [2]*uint16 {
+	p := [2]*uint16{}
+	for i, port := range ports {
+		pp := uint16(port)
+		p[i] = &pp
+	}
+	return p
 }
 
 // Validate check parameters of Port struct
@@ -448,11 +516,11 @@ func (l4 *L4Rule) Validate() error {
 	return nil
 }
 
-// Redirect defines struct describing Redirection action, if Transparent Proxy is required
+// redirect defines struct describing Redirection action, if Transparent Proxy is required
 // TProxy should be set
-type Redirect struct {
-	Port   uint16
-	TProxy bool
+type redirect struct {
+	port   uint16
+	tproxy bool
 }
 
 // Meta defines parameters used to build nft meta expression
@@ -461,14 +529,81 @@ type Meta struct {
 	Value []byte
 }
 
+// RuleAction defines what action needs to be executed on the rule match
+type RuleAction struct {
+	verdict  *expr.Verdict
+	redirect *redirect
+}
+
+// SetVerdict builds RuleAction struct for Verdict based actions
+func SetVerdict(key int, chain ...string) (*RuleAction, error) {
+	ra := &RuleAction{}
+	if err := ra.setVerdict(key, chain...); err != nil {
+		return nil, err
+	}
+	return ra, nil
+}
+
+// SetRedirect builds RuleAction struct for Redirect action
+func SetRedirect(port int, tproxy bool) (*RuleAction, error) {
+	ra := &RuleAction{}
+	if err := ra.setRedirect(port, tproxy); err != nil {
+		return nil, err
+	}
+	return ra, nil
+}
+
+// Validate method validates RuleAction parameters and returns error if inconsistency if found
+func (ra *RuleAction) Validate() error {
+	if ra.verdict == nil && ra.redirect == nil {
+		return fmt.Errorf("rule's action is not set")
+	}
+	if ra.verdict != nil && ra.redirect != nil {
+		return fmt.Errorf("rule's action cannot have both redirect and verdict set")
+	}
+	return nil
+}
+
+func (ra *RuleAction) setRedirect(port int, tproxy bool) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("value of port %d is invalid", port)
+	}
+	ra.redirect = &redirect{
+		port:   uint16(port),
+		tproxy: tproxy,
+	}
+
+	return nil
+}
+func (ra *RuleAction) setVerdict(key int, chain ...string) error {
+	ra.verdict = &expr.Verdict{}
+	switch key {
+	case unix.NFT_JUMP:
+		fallthrough
+	case unix.NFT_GOTO:
+		if len(chain) > 1 {
+			return fmt.Errorf("only a single chain name can be specified")
+		}
+		if len(chain) == 0 {
+			return fmt.Errorf("jump or goto verdicts must have a chain name specified")
+		}
+		ra.verdict.Chain = chain[0]
+	case unix.NFT_RETURN:
+	case NFT_DROP:
+	case NFT_ACCEPT:
+	}
+	ra.verdict.Kind = expr.VerdictKind(int64(key))
+
+	return nil
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3       *L3Rule
-	L4       *L4Rule
-	Meta     *Meta
-	Verdict  *expr.Verdict
-	Exclude  bool
-	Redirect *Redirect
+	L3      *L3Rule
+	L4      *L4Rule
+	Meta    *Meta
+	Exclude bool
+	Action  *RuleAction
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found
@@ -476,14 +611,11 @@ func (r Rule) Validate() error {
 	if r.L3 != nil && r.L4 != nil {
 		return fmt.Errorf("either L3 or L4 but not both can be specified")
 	}
-	if r.Verdict != nil && r.Redirect != nil {
-		return fmt.Errorf("either Verdict or Redirect but not both can be specified")
+	if r.Action == nil {
+		return fmt.Errorf("rule's action cannot be nil")
 	}
-	if r.L3 == nil && r.L4 == nil && r.Redirect != nil {
-		return fmt.Errorf("Redirect requires L3 or L4 to be not nil")
-	}
-	if r.Verdict == nil && r.Redirect == nil {
-		return fmt.Errorf("either Redirect or Verdict is required")
+	if err := r.Action.Validate(); err != nil {
+		return err
 	}
 	switch {
 	case r.L3 != nil:
@@ -495,6 +627,8 @@ func (r Rule) Validate() error {
 			return err
 		}
 	}
-
+	if r.L3 == nil && r.L4 == nil && r.Action.redirect != nil {
+		return fmt.Errorf("cannot redirect wihtout specifying L3 or L4 rule")
+	}
 	return nil
 }
