@@ -14,24 +14,20 @@ type Rule struct {
     L3      *L3Rule
     L4      *L4Rule
     Meta    *Meta
-    Verdict *expr.Verdict
-    Redirect *uint32
     Exclude bool
+    Action  *RuleAction
 }
 ```
 **Meta** Allows to specify additional matching criteria, for more details on supported keys, see [Meta Expressions section in nft man document](https://www.netfilter.org/projects/nftables/manpage.html)
- 
-**Verdict** defines an action to take when condition is met. In some cases **Verdict** can be used without any conditions to be the last action in the chain. Example, when chain has default policy of Accept, but you want the traffic which did not match any condition to be dropped.
 
 **Exclude** flag is true when the condition specified by the rules should be inverted. Example, L4 condition specifies match on tcp traffic for a range of ports 1025-1028, setting **Exclude** to *true* will match every tcp port with the exception of the ports specified in the range. 
 
-**Redirect** struct defines a port where the traffic matching condition should be fowarded to. If transparent proxy is required, **TProxy** variable should be set to *true*
-```
-type Redirect struct {
-	Port   uint16
-	TProxy bool
-}
-```
+**RuleAction** defines what action needs to be executed on the rule match. Currently, there are two choices, Verdict type and Redirect.
+
+**SetVerdict(key int, chain ...string)** function defines the verdict based on passed arguments and returns *RuleActionan action. In some cases *Verdict* can be used without any conditions to be the last action in the chain. Example, when chain has default policy of Accept, but you want the traffic which did not match any condition to be dropped.
+
+**SetRedirectport int, tproxy bool** function defines the redirection or where the traffic matching condition should be fowarded to. If transparent proxy is required, *tproxy* parameter should be set to *true*
+
 
 A single rule can carry either L3 or L4 parameteres. L3 and L4 cannot be combined in the same rule. 
 Redirect requires either L3 or L4, if there is no condition to match some traffic validation of a rule will fail.
@@ -116,6 +112,11 @@ func main() {
 	}
 	// Specifying L3 rule if ipv4 traffic is source from one of these ip addresses
     // stiop processing.
+    ruleAction, err := nftableslib.SetVerdict(unix.NFT_JUMP, "fake-chain-1")
+	if err != nil {
+		fmt.Printf("Failed to set the verdict with error: %+v\n", err)
+		os.Exit(1)
+	}
 	rule1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
 			Src: &nftableslib.IPAddrSpec{
@@ -137,9 +138,7 @@ func main() {
 				},
 			},
 		},
-        Verdict: &expr.Verdict{
-			Kind: expr.VerdictKind(unix.NFT_RETURN),
-		},
+        Action: ruleAction,
 		Exclude: false,
 	}
     // Getting Rules interface from chain ipv4chain-1
@@ -175,7 +174,7 @@ table ip ipv4table {
 
 	chain ipv4chain-1 {
 		type filter hook prerouting priority -2147483648; policy accept;
-		ip saddr == @ipv4rule-1 return
+		ip saddr == @ipv4rule-1 jump fake-chain-1
 	}
 }
 
