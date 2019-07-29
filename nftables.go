@@ -183,3 +183,12 @@ func (nft *nfTables) Dump() ([]byte, error) {
 func printTable(t *nftables.Table) []byte {
 	return []byte(fmt.Sprintf("\nTable: %s Family: %+v Flags: %x Use: %x \n", t.Name, t.Family, t.Flags, t.Use))
 }
+
+// IsNFTablesOn detects whether nf_tables module is loaded or not, it return true is ListChains call succeeds,
+// otherwise it return false.
+func IsNFTablesOn(conn *nftables.Conn) bool {
+	if _, err := conn.ListChains(); err != nil {
+		return false
+	}
+	return true
+}
