@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/google/nftables v0.0.0-20190723031257-72bd788b1118
+	github.com/google/uuid v1.1.1
 	github.com/jsimonetti/rtnetlink v0.0.0-20190606172950-9527aa82566a // indirect
 	github.com/mdlayher/netlink v0.0.0-20190617153422-f82a9b10b2bc // indirect
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f // indirect
