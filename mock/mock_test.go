@@ -39,6 +39,68 @@ func TestMock(t *testing.T) {
 	port3 := 8989
 	portRedirect := 15001
 
+	v2ipv4tests := []struct {
+		name    string
+		rule    nftableslib.Rule
+		success bool
+	}{
+		{
+			name: "L4 Source and Destination lists",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0"), setIPAddr(t, "192.0.3.0")},
+					},
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.12.0"), setIPAddr(t, "192.0.13.0")},
+					},
+				},
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Src: &nftableslib.Port{
+						List: nftableslib.SetPortList([]int{port1, port2}),
+					},
+					Dst: &nftableslib.Port{
+						List: nftableslib.SetPortList([]int{port3}),
+					},
+				},
+				Action:  setActionVerdict(t, unix.NFT_RETURN),
+				Exclude: false,
+			},
+			success: true,
+		},
+	}
+	v2ipv6tests := []struct {
+		name    string
+		rule    nftableslib.Rule
+		success bool
+	}{
+		{
+			name: "Single IPv4 in list, source, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Src: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:123::1"), setIPAddr(t, "2001:456::1")},
+					},
+					Dst: &nftableslib.IPAddrSpec{
+						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:123:456::1"), setIPAddr(t, "2001:456:789::1")},
+					},
+				},
+				L4: &nftableslib.L4Rule{
+					L4Proto: unix.IPPROTO_TCP,
+					Src: &nftableslib.Port{
+						List: nftableslib.SetPortList([]int{port1, port2}),
+					},
+					Dst: &nftableslib.Port{
+						List: nftableslib.SetPortList([]int{port3}),
+					},
+				},
+				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
+				Exclude: false,
+			},
+			success: true,
+		},
+	}
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -500,6 +562,33 @@ func TestMock(t *testing.T) {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
 		_, err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		if err == nil && !tt.success {
+			t.Errorf("Test: %s should fail but succeeded", tt.name)
+		}
+		if err != nil && tt.success {
+			t.Errorf("Test: %s should succeed but fail with error: %v", tt.name, err)
+		}
+	}
+
+	for _, tt := range v2ipv4tests {
+		ri, err := tblV4.Chains().Chain("chain-1-v4")
+		if err != nil {
+			t.Fatalf("failed to get rules interface for chain chain-1-v4")
+		}
+		_, err = ri.Rules().CreateV2(&tt.rule)
+		if err == nil && !tt.success {
+			t.Errorf("Test: %s should fail but succeeded", tt.name)
+		}
+		if err != nil && tt.success {
+			t.Errorf("Test: %s should succeed but fail with error: %v", tt.name, err)
+		}
+	}
+	for _, tt := range v2ipv6tests {
+		ri, err := tblV6.Chains().Chain("chain-1-v6")
+		if err != nil {
+			t.Fatalf("failed to get rules interface for chain chain-1-v6")
+		}
+		_, err = ri.Rules().CreateV2(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
