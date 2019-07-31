@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 )
 
@@ -29,6 +30,7 @@ type RulesInterface interface {
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
 	Create(string, *Rule) (uint32, error)
+	CreateV2(*Rule) (uint32, error)
 	CreateImm(string, *Rule) (uint32, error)
 	Delete(uint32) error
 	DeleteImm(uint32) error
@@ -48,10 +50,16 @@ type nfRules struct {
 	rules     *nfRule
 }
 
+type nfSet struct {
+	set      *nftables.Set
+	elements []nftables.SetElement
+}
+
 type nfRule struct {
 	id   uint32
 	rule *nftables.Rule
 	set  *nftables.Set
+	sets []*nfSet
 	sync.Mutex
 	next *nfRule
 	prev *nfRule
@@ -61,11 +69,70 @@ func (nfr *nfRules) Rules() RuleFuncs {
 	return nfr
 }
 
-func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
-	// Validating passed rule parameters
-	if err := rule.Validate(); err != nil {
-		return 0, err
+func (nfr *nfRules) CreateV2(rule *Rule) (uint32, error) {
+	r := &nftables.Rule{}
+	var err error
+	var sets []*nfSet
+	var set []*nfSet
+	e := []expr.Any{}
+	if rule.L3 != nil {
+		if e, set, err = createL3V2(nfr.table.Family, rule); err != nil {
+			return 0, nil
+		}
+		sets = append(sets, set...)
+		r.Exprs = append(r.Exprs, e...)
 	}
+
+	if rule.L4 != nil {
+		if e, set, err = createL4V2(nfr.table.Family, rule); err != nil {
+			return 0, nil
+		}
+		sets = append(sets, set...)
+		r.Exprs = append(r.Exprs, e...)
+	}
+
+	// If L3Rule or L4Rule did not produce a rule, initialize one to carry
+	// Rule's Action expression
+	if len(r.Exprs) == 0 {
+		r.Exprs = []expr.Any{}
+	}
+	// Check if Meta is specified appending to rule's list of expressions
+	if rule.Meta != nil {
+		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
+	}
+	if rule.Action.redirect != nil {
+		if rule.Action.redirect.tproxy {
+			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+		} else {
+			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+		}
+	} else if rule.Action.verdict != nil {
+		r.Exprs = append(r.Exprs, rule.Action.verdict)
+	}
+
+	r.Table = nfr.table
+	r.Chain = nfr.chain
+
+	rr := &nfRule{}
+	for _, s := range sets {
+		s.set.Table = nfr.table
+		if err := nfr.conn.AddSet(s.set, s.elements); err != nil {
+			return 0, err
+		}
+		s.set.DataLen = len(s.elements)
+		rr.sets = append(rr.sets, s)
+	}
+
+	rr.rule = r
+	nfr.addRule(rr)
+
+	// Pushing rule to netlink library to be programmed by Flsuh()
+	nfr.conn.AddRule(r)
+
+	return rr.id, nil
+}
+
+func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	set := nftables.Set{
 		Anonymous: false,
 		Constant:  true,
@@ -110,12 +177,17 @@ func (nfr *nfRules) Create(name string, rule *Rule) (uint32, error) {
 	r.Chain = nfr.chain
 
 	rr := &nfRule{}
+	rr.sets = make([]*nfSet, 0)
 	if len(se) != 0 {
 		if err := nfr.conn.AddSet(&set, se); err != nil {
 			return 0, err
 		}
 		set.DataLen = len(se)
 		rr.set = &set
+		rr.sets = append(rr.sets, &nfSet{
+			set:      &set,
+			elements: se,
+		})
 	}
 	rr.rule = r
 	nfr.addRule(rr)
@@ -631,4 +703,9 @@ func (r Rule) Validate() error {
 		return fmt.Errorf("cannot redirect wihtout specifying L3 or L4 rule")
 	}
 	return nil
+}
+
+func getSetName() string {
+	name := uuid.New().String()
+	return name[len(name)-12:]
 }
