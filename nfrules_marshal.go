@@ -1,14 +1,36 @@
 package nftableslib
 
 import (
+	"encoding/json"
 	"fmt"
+
+	"github.com/google/nftables"
 
 	"github.com/google/nftables/expr"
 )
 
+func marshalSetElements(elements []nftables.SetElement) ([]byte, error) {
+	var jsonData []byte
+	jsonData = append(jsonData, '[')
+
+	for i, element := range elements {
+		jsonData = append(jsonData, '{')
+		jsonData = append(jsonData, []byte("\"Key\":")...)
+		jsonData = append(jsonData, []byte(fmt.Sprintf("\"%v\"", element.Key))...)
+		jsonData = append(jsonData, []byte(",\"Val\":")...)
+		jsonData = append(jsonData, []byte(fmt.Sprintf("\"%s\"", element.Val))...)
+		jsonData = append(jsonData, '}')
+		if i < len(elements)-1 {
+			jsonData = append(jsonData, ',')
+		}
+	}
+	jsonData = append(jsonData, ']')
+
+	return jsonData, nil
+}
+
 func (nfr *nfRule) MarshalJSON() ([]byte, error) {
 	var jsonData []byte
-
 	jsonData = append(jsonData, '[')
 
 	for i := 0; i < len(nfr.rule.Exprs); i++ {
@@ -20,6 +42,20 @@ func (nfr *nfRule) MarshalJSON() ([]byte, error) {
 		if i < len(nfr.rule.Exprs)-1 {
 			jsonData = append(jsonData, ',')
 		}
+	}
+	for _, set := range nfr.sets {
+		s, err := json.Marshal(set.set)
+		if err != nil {
+			return nil, err
+		}
+		jsonData = append(jsonData, ',')
+		jsonData = append(jsonData, s...)
+		e, err := marshalSetElements(set.elements)
+		if err != nil {
+			return nil, err
+		}
+		jsonData = append(jsonData, ',')
+		jsonData = append(jsonData, e...)
 	}
 	jsonData = append(jsonData, ']')
 
