@@ -45,7 +45,7 @@ func TestMock(t *testing.T) {
 		success bool
 	}{
 		{
-			name: "L4 Source and Destination lists",
+			name: "IPv4 L3 and L4 Source and Destination lists",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
@@ -76,14 +76,14 @@ func TestMock(t *testing.T) {
 		success bool
 	}{
 		{
-			name: "Single IPv4 in list, source, no exclusion",
+			name: "IPv4 L3 and L4 Source and Destination lists",
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:123::1"), setIPAddr(t, "2001:456::1")},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "fe00:123::1"), setIPAddr(t, "2001:456::")},
 					},
 					Dst: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{setIPAddr(t, "2001:123:456::1"), setIPAddr(t, "2001:456:789::1")},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "::1234:1"), setIPAddr(t, "::1"), setIPAddr(t, "::")},
 					},
 				},
 				L4: &nftableslib.L4Rule{
