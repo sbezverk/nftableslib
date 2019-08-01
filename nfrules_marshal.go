@@ -3,11 +3,55 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/nftables"
 
+	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 )
+
+func buildIPv6String(b []byte) string {
+	s := make([]string, 40)
+	compressing := false
+	nomore := false
+	y := 0
+	for i := 0; i < len(b); i += 2 {
+		if b[i] == 0x0 && b[i+1] == 0x0 && !compressing && !nomore {
+			s[y] = ":"
+			y++
+			compressing = true
+			continue
+		}
+		// Check if still in compressing mode
+		if compressing {
+			// check if current byte is still 0, if it is continue to the next one
+			if b[i] == 0x0 && b[i+1] == 0x0 {
+				continue
+			}
+			s[y] = ":"
+			y++
+			nomore = true
+			compressing = false
+		}
+		if i%2 == 0 && i != 0 && s[y-1] != ":" {
+			s[y] = ":"
+			y++
+		}
+		if b[i] == 0 {
+			s[y] = fmt.Sprintf("%x", b[i+1])
+		} else {
+			s[y] = fmt.Sprintf("%x", b[i])
+			s[y+1] = fmt.Sprintf("%02x", b[i+1])
+		}
+		y += 2
+	}
+	if compressing {
+		// case for "::" address
+		s[y] = ":"
+	}
+	return strings.Join(s, "")
+}
 
 func marshalSetElements(elements []nftables.SetElement) ([]byte, error) {
 	var jsonData []byte
@@ -16,7 +60,23 @@ func marshalSetElements(elements []nftables.SetElement) ([]byte, error) {
 	for i, element := range elements {
 		jsonData = append(jsonData, '{')
 		jsonData = append(jsonData, []byte("\"Key\":")...)
-		jsonData = append(jsonData, []byte(fmt.Sprintf("\"%v\"", element.Key))...)
+		switch len(element.Key) {
+		case 4:
+			// It is IPv4 address
+			jsonData = append(jsonData, []byte(fmt.Sprintf("\"%d.%d.%d.%d\"", element.Key[0], element.Key[1], element.Key[2], element.Key[3]))...)
+		case 16:
+			// It is IPv6 address
+			jsonData = append(jsonData, []byte(fmt.Sprintf("\"%s\"", buildIPv6String(element.Key)))...)
+		case 2:
+			// It is a port
+			b := []byte{0x0, 0x0}
+			b = append(b, element.Key...)
+			jsonData = append(jsonData, []byte(fmt.Sprintf("\"%d\"", binaryutil.BigEndian.Uint32(b)))...)
+		default:
+			// It is unknown value
+			jsonData = append(jsonData, []byte(fmt.Sprintf("\"%v\"", element.Key))...)
+		}
+
 		jsonData = append(jsonData, []byte(",\"Val\":")...)
 		jsonData = append(jsonData, []byte(fmt.Sprintf("\"%s\"", element.Val))...)
 		jsonData = append(jsonData, '}')
