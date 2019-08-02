@@ -186,7 +186,8 @@ func printTable(t *nftables.Table) []byte {
 
 // IsNFTablesOn detects whether nf_tables module is loaded or not, it return true is ListChains call succeeds,
 // otherwise it return false.
-func IsNFTablesOn(conn *nftables.Conn) bool {
+func IsNFTablesOn() bool {
+	conn := InitConn()
 	if _, err := conn.ListChains(); err != nil {
 		return false
 	}
