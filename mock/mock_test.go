@@ -1,7 +1,6 @@
 package mock
 
 import (
-	"strconv"
 	"testing"
 
 	"github.com/google/nftables"
@@ -528,12 +527,12 @@ func TestMock(t *testing.T) {
 	}
 	tblV6.Chains().Create("chain-1-v6", &chainAttrs)
 
-	for i, tt := range ipv4Tests {
+	for _, tt := range ipv4Tests {
 		ri, err := tblV4.Chains().Chain("chain-1-v4")
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
-		_, err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -542,12 +541,12 @@ func TestMock(t *testing.T) {
 		}
 	}
 
-	for i, tt := range ipv6Tests {
+	for _, tt := range ipv6Tests {
 		ri, err := tblV6.Chains().Chain("chain-1-v6")
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v6")
 		}
-		_, err = ri.Rules().Create("rule-00-v6-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -556,12 +555,12 @@ func TestMock(t *testing.T) {
 		}
 	}
 
-	for i, tt := range l4PortTests {
+	for _, tt := range l4PortTests {
 		ri, err := tblV4.Chains().Chain("chain-1-v4")
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
-		_, err = ri.Rules().Create("rule-00-v4-"+strconv.Itoa(i), &tt.rule)
+		_, err = ri.Rules().Create(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -575,7 +574,7 @@ func TestMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v4")
 		}
-		_, err = ri.Rules().CreateV2(&tt.rule)
+		_, err = ri.Rules().Create(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}
@@ -588,7 +587,7 @@ func TestMock(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get rules interface for chain chain-1-v6")
 		}
-		_, err = ri.Rules().CreateV2(&tt.rule)
+		_, err = ri.Rules().Create(&tt.rule)
 		if err == nil && !tt.success {
 			t.Errorf("Test: %s should fail but succeeded", tt.name)
 		}

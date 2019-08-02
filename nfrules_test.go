@@ -43,7 +43,7 @@ func TestRule(t *testing.T) {
 		{
 			name:    "Empty rule",
 			rule:    &Rule{},
-			success: false,
+			success: true,
 		},
 		{
 			name: "Good L3",

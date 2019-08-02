@@ -1,7 +1,6 @@
 package nftableslib
 
 import (
-	"fmt"
 	"math/rand"
 
 	"github.com/google/nftables/binaryutil"
@@ -10,7 +9,7 @@ import (
 	"github.com/google/nftables"
 )
 
-func createL4V2(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, error) {
+func createL4(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, error) {
 	var offset uint32
 	re := []expr.Any{}
 	e := []expr.Any{}
@@ -22,13 +21,13 @@ func createL4V2(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, 
 	if l4.Src != nil {
 		offset = 0
 		if len(l4.Src.List) != 0 {
-			e, set, err = processPortListV2(l4.L4Proto, offset, l4.Src.List, rule.Exclude)
+			e, set, err = processPortList(l4.L4Proto, offset, l4.Src.List, rule.Exclude)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 		if l4.Src.Range[0] != nil && l4.Src.Range[1] != nil {
-			e, set, err = processPortRangeV2(l4.L4Proto, offset, l4.Src.Range, rule.Exclude)
+			e, set, err = processPortRange(l4.L4Proto, offset, l4.Src.Range, rule.Exclude)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -42,13 +41,13 @@ func createL4V2(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, 
 	if l4.Dst != nil {
 		offset = 2
 		if len(l4.Dst.List) != 0 {
-			e, set, err = processPortListV2(l4.L4Proto, offset, l4.Dst.List, rule.Exclude)
+			e, set, err = processPortList(l4.L4Proto, offset, l4.Dst.List, rule.Exclude)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 		if l4.Dst.Range[0] != nil && l4.Dst.Range[1] != nil {
-			e, set, err = processPortRangeV2(l4.L4Proto, offset, l4.Dst.Range, rule.Exclude)
+			e, set, err = processPortRange(l4.L4Proto, offset, l4.Dst.Range, rule.Exclude)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -63,71 +62,7 @@ func createL4V2(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, 
 	return re, sets, nil
 }
 
-func createL4(family nftables.TableFamily, rule *Rule, set *nftables.Set) (*nftables.Rule, []nftables.SetElement, error) {
-	var rulePort *Port
-	var offset uint32
-	l4 := rule.L4
-	set.KeyType = nftables.TypeInetService
-	if l4.Src != nil {
-		rulePort = l4.Src
-		offset = 0
-	}
-	if l4.Dst != nil {
-		rulePort = l4.Dst
-		offset = 2
-	}
-
-	re := []expr.Any{}
-	se := []nftables.SetElement{}
-	var err error
-	processed := false
-	if len(rulePort.List) != 0 {
-		re, se, err = processPortList(l4.L4Proto, offset, rulePort.List, rule.Exclude, set)
-		if err != nil {
-			return nil, nil, err
-		}
-		processed = true
-	}
-	if rulePort.Range[0] != nil && rulePort.Range[1] != nil {
-		re, _, err = processPortRange(l4.L4Proto, offset, rulePort.Range, rule.Exclude)
-		if err != nil {
-			return nil, nil, err
-		}
-		processed = true
-	}
-	if !processed {
-		return nil, nil, fmt.Errorf("both port list and port range are nil")
-	}
-
-	return &nftables.Rule{Exprs: re}, se, nil
-}
-
-func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, []nftables.SetElement, error) {
-	// Processing multiple ports case
-	re := []expr.Any{}
-	// Normal case, more than 1 entry in the port list need to build SetElement slice
-	setElements := make([]nftables.SetElement, len(port))
-	for i := 0; i < len(port); i++ {
-		setElements[i].Key = binaryutil.BigEndian.PutUint16(*port[i])
-	}
-
-	re, err := getExprForListPort(l4proto, offset, port, excl, set)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return re, setElements, nil
-}
-
-func processPortRange(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, []nftables.SetElement, error) {
-	re, err := getExprForRangePort(l4proto, offset, port, excl)
-	if err != nil {
-		return nil, nil, err
-	}
-	return re, nil, nil
-}
-
-func processPortListV2(l4proto uint8, offset uint32, port []*uint16, excl bool) ([]expr.Any, *nfSet, error) {
+func processPortList(l4proto uint8, offset uint32, port []*uint16, excl bool) ([]expr.Any, *nfSet, error) {
 	// Processing multiple ports case
 	re := []expr.Any{}
 	nfset := &nfSet{}
@@ -152,7 +87,7 @@ func processPortListV2(l4proto uint8, offset uint32, port []*uint16, excl bool) 
 	return re, nfset, nil
 }
 
-func processPortRangeV2(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, *nfSet, error) {
+func processPortRange(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, *nfSet, error) {
 	re, err := getExprForRangePort(l4proto, offset, port, excl)
 	if err != nil {
 		return nil, nil, err
