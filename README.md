@@ -7,7 +7,7 @@ Similarly, once chain is created, a caller can request this chain's Rules interf
 
 A caller defines netfilter rule by means of a Rule struct. 
 
-Rule contains parameters for a rule to configure L3(ip/ipv6), L4(tcp/udp/port) parameters can be specified. 
+Rule contains parameters for a rule to configure L3(ip/ipv6) and L4(tcp/udp/port) parameters. 
 
 ```
 type Rule struct {
@@ -29,7 +29,7 @@ type Rule struct {
 **SetRedirectport int, tproxy bool** function defines the redirection or where the traffic matching condition should be fowarded to. If transparent proxy is required, *tproxy* parameter should be set to *true*
 
 
-A single rule can carry either L3 or L4 parameteres. L3 and L4 cannot be combined in the same rule. 
+A single rule can carry L3 and L4 parameteres. L3 and L4 can be combined in the same rule. 
 Redirect requires either L3 or L4, if there is no condition to match some traffic validation of a rule will fail.
 
 L4 parameters are defined by L4 type:
@@ -47,9 +47,12 @@ type L3Rule struct {
 	Src *IPAddrSpec
 	Dst *IPAddrSpec
 	Version *uint32
+    Protocol *uint32
 }
 ```
 **Version** parameter is used to match against a particular IP protocol version. Example, all IPv4 or all IPv6 traffic.
+
+**Protocol** parameter is used to match a specific L4 protocol, example all TCP or UDP or ICMP traffic
 
 Rule type offers Validation method which checks all parameters provided in Rule structure for consistency.
 
