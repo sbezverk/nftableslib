@@ -120,25 +120,12 @@ func main() {
 		fmt.Printf("Failed to set the verdict with error: %+v\n", err)
 		os.Exit(1)
 	}
+    ipv4addr1, _ := nftableslib.NewIPAddr("1.2.3.4")
+    ipv4addr2, _ := nftableslib.NewIPAddr("2.3.4.5")
 	rule1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
 			Src: &nftableslib.IPAddrSpec{
-				List: []*nftableslib.IPAddr{
-					{
-						&net.IPAddr{
-							IP: net.ParseIP("1.2.3.4"),
-						},
-						fasse,
-						nil,
-					},
-					{
-						&net.IPAddr{
-							IP: net.ParseIP("2.3.4.5"),
-						},
-						false,
-						nil,
-					},
-				},
+				List: []*nftableslib.IPAddr{ipv4addr1,ipv4addr2},
 			},
 		},
         Action: ruleAction,
