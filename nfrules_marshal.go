@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/nftables"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
@@ -293,6 +294,44 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, []byte(fmt.Sprintf("\"%s\"", e.SetName))...)
 		b = append(b, []byte(",\"Invert\":")...)
 		b = append(b, []byte(fmt.Sprintf("\"%t\"}", e.Invert))...)
+		return b, nil
+	}
+	if e, ok := exp.(*expr.Log); ok {
+		b = append(b, []byte("{\"Key\":")...)
+		switch e.Key {
+		case unix.NFTA_LOG_PREFIX:
+			b = append(b, []byte(fmt.Sprintf("\"unix.NFTA_LOG_PREFIX\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, []byte(fmt.Sprintf("\"%s\"}", string(e.Data)))...)
+		case unix.NFTA_LOG_LEVEL:
+			b = append(b, []byte(fmt.Sprintf("\"unix.NFTA_LOG_LEVEL\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, []byte(fmt.Sprintf("\"%s\"}", string(e.Data)))...)
+		case unix.NFTA_LOG_GROUP:
+			b = append(b, []byte(fmt.Sprintf("\"unix.NFTA_LOG_GROUP\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, []byte(fmt.Sprintf("%d}", binaryutil.BigEndian.Uint32(e.Data)))...)
+		case unix.NFTA_LOG_SNAPLEN:
+			b = append(b, []byte(fmt.Sprintf("\"unix.NFTA_LOG_SNAPLEN\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, []byte(fmt.Sprintf("%d}", binaryutil.BigEndian.Uint32(e.Data)))...)
+		case unix.NFTA_LOG_QTHRESHOLD:
+			b = append(b, []byte(fmt.Sprintf("\"unix.NFTA_LOG_QTHRESHOLD\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, []byte(fmt.Sprintf("%d}", binaryutil.BigEndian.Uint32(e.Data)))...)
+		default:
+			b = append(b, []byte(fmt.Sprintf("\"Unknown\""))...)
+			b = append(b, []byte(",\"Value\":")...)
+			b = append(b, '[')
+			for i := 0; i < len(e.Data); i++ {
+				b = append(b, fmt.Sprintf("\"%#x\"", e.Data[i])...)
+				if i < len(e.Data)-1 {
+					b = append(b, ',')
+				}
+			}
+			b = append(b, ']')
+			b = append(b, []byte(fmt.Sprintf("}"))...)
+		}
 		return b, nil
 	}
 	if e, ok := exp.(*expr.Range); ok {
