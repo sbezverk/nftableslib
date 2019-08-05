@@ -101,6 +101,10 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	if rule.Meta != nil {
 		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
 	}
+	// Check if Meta is specified appending to rule's list of expressions
+	if rule.Log != nil {
+		r.Exprs = append(r.Exprs, getExprForLog(rule.Log)...)
+	}
 	if rule.Action.redirect != nil {
 		if rule.Action.redirect.tproxy {
 			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
@@ -545,11 +549,32 @@ func (ra *RuleAction) setVerdict(key int, chain ...string) error {
 	return nil
 }
 
+// Log defines nftables logging parameters for a rule
+type Log struct {
+	Key   uint32
+	Value []byte
+}
+
+// SetLog is a helper function returning Log struct with validated values
+func SetLog(key int, value []byte) (*Log, error) {
+	switch key {
+	case unix.NFTA_LOG_PREFIX:
+	case unix.NFTA_LOG_LEVEL:
+	case unix.NFTA_LOG_GROUP:
+	case unix.NFTA_LOG_SNAPLEN:
+	case unix.NFTA_LOG_QTHRESHOLD:
+	default:
+		return nil, fmt.Errorf("%d is unsupported value for log's key", key)
+	}
+	return &Log{Key: uint32(key), Value: value}, nil
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
 	L3      *L3Rule
 	L4      *L4Rule
 	Meta    *Meta
+	Log     *Log
 	Exclude bool
 	Action  *RuleAction
 }

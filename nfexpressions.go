@@ -418,6 +418,13 @@ func getExprForMeta(meta *Meta) []expr.Any {
 	return re
 }
 
+func getExprForLog(log *Log) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Log{Key: log.Key, Data: log.Value})
+
+	return re
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8
