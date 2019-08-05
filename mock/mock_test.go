@@ -32,6 +32,11 @@ func setIPAddr(t *testing.T, addr string) *nftableslib.IPAddr {
 	return a
 }
 
+func setLog(key int, value []byte) *nftableslib.Log {
+	log, _ := nftableslib.SetLog(key, value)
+	return log
+}
+
 func TestMock(t *testing.T) {
 	port1 := 8080
 	port2 := 9090
@@ -63,6 +68,7 @@ func TestMock(t *testing.T) {
 						List: nftableslib.SetPortList([]int{port3}),
 					},
 				},
+				Log:     setLog(unix.NFTA_LOG_PREFIX, []byte("nftableslib")),
 				Action:  setActionVerdict(t, unix.NFT_RETURN),
 				Exclude: false,
 			},
