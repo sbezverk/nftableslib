@@ -286,10 +286,10 @@ type IPAddr struct {
 
 // IsIPv6 is a helper function, it returns true if IPAddr struct holds IPv6 address, otherwise it returns true
 func (ip *IPAddr) IsIPv6() bool {
-	if ip.IP.To16() == nil {
-		return false
+	if ip.IP.To4() == nil {
+		return true
 	}
-	return true
+	return false
 }
 
 // Validate checks validity of ip address and its parameters
@@ -315,13 +315,13 @@ type IPAddrSpec struct {
 // required by IPAddrSpec. If CIDR format is specified, Mask will be set to address'
 // subnet mask and CIDR will e set to true
 func NewIPAddr(addr string) (*IPAddr, error) {
-	if ip, ipnet, err := net.ParseCIDR(addr); err == nil {
+	if _, ipnet, err := net.ParseCIDR(addr); err == nil {
 		// Found a valid CIDR address
 		ones, _ := ipnet.Mask.Size()
 		mask := uint8(ones)
 		return &IPAddr{
 			&net.IPAddr{
-				IP: ip,
+				IP: ipnet.IP,
 			},
 			true,
 			&mask,
@@ -332,12 +332,20 @@ func NewIPAddr(addr string) (*IPAddr, error) {
 	if ip == nil {
 		return nil, fmt.Errorf("%s is invalid ip address", addr)
 	}
+	mask := uint8(32)
+	if ip.To4() == nil {
+		mask = uint8(128)
+	}
+	_, ipnet, err := net.ParseCIDR(addr + "/" + fmt.Sprintf("%d", mask))
+	if err != nil {
+		return nil, err
+	}
 	return &IPAddr{
 		&net.IPAddr{
-			IP: ip,
+			IP: ipnet.IP,
 		},
-		false,
-		nil,
+		true,
+		&mask,
 	}, nil
 }
 
