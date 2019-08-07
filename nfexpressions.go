@@ -116,31 +116,6 @@ func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset ui
 	return re, nil
 }
 
-// getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
-func getExprForListIPV2(l3proto nftables.TableFamily, set *nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
-	re := []expr.Any{}
-
-	addrLen := 4
-	if l3proto == nftables.TableFamilyIPv6 {
-		addrLen = 16
-	}
-	re = append(re, &expr.Payload{
-		DestRegister: 1,
-		Base:         expr.PayloadBaseNetworkHeader,
-		Offset:       offset,          // Offset ip address in network header
-		Len:          uint32(addrLen), // length bytes for ip address
-	})
-
-	re = append(re, &expr.Lookup{
-		SourceRegister: 1,
-		Invert:         excl,
-		SetID:          set.ID,
-		SetName:        set.Name,
-	})
-
-	return re, nil
-}
-
 // getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
 func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool) ([]expr.Any, error) {
 	re := []expr.Any{}
