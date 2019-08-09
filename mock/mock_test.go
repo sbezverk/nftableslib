@@ -106,6 +106,7 @@ func TestMock(t *testing.T) {
 			success: true,
 		},
 	}
+
 	ipv4Tests := []struct {
 		name    string
 		rule    nftableslib.Rule
@@ -136,7 +137,7 @@ func TestMock(t *testing.T) {
 			rule: nftableslib.Rule{
 				L3: &nftableslib.L3Rule{
 					Src: &nftableslib.IPAddrSpec{
-						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0/19")},
+						List: []*nftableslib.IPAddr{setIPAddr(t, "192.16.0.0/16"), setIPAddr(t, "10.16.0.0/16")},
 					},
 				},
 				Action:  setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
