@@ -284,7 +284,7 @@ type IPAddr struct {
 	Mask *uint8
 }
 
-// IsIPv6 is a helper function, it returns true if IPAddr struct holds IPv6 address, otherwise it returns true
+// IsIPv6 is a helper function, it returns true if IPAddr struct holds IPv6 address, otherwise it returns false
 func (ip *IPAddr) IsIPv6() bool {
 	if ip.IP.To4() == nil {
 		return true

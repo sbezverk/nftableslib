@@ -14,11 +14,22 @@ type Rule struct {
     L3      *L3Rule
     L4      *L4Rule
     Meta    *Meta
+    Log     *Log
     Exclude bool
     Action  *RuleAction
 }
 ```
 **Meta** Allows to specify additional matching criteria, for more details on supported keys, see [Meta Expressions section in nft man document](https://www.netfilter.org/projects/nftables/manpage.html)
+
+**Log** Allows to trigger logging for a specific rule. The helper function *SetLog(key int, value []byte)* allows to customize certain logging parameters, below is the list of supported keys and values type: 
+
+| Keyword                  |  Description                                                                  | Type                                                             |
+|--------------------------|-------------------------------------------------------------------------------|------------------------------------------|
+| unix.NFTA_LOG_PREFIX     | Log message prefix                                                            | string                                                           |
+| unix.NFTA_LOG_LEVEL      | Syslog level of logging                                                       | emerg, alert, crit, err, warn [default], notice, info, debug |
+| unix.NFTA_LOG_GROUP      | FLOG group to send messages to                                                | uint16                                                           |
+| unix.NFTA_LOG_SNAPLEN    | Length of packet payload to include in netlink message                        | uint32                                                           |
+| unix.NFTA_LOG_QTHRESHOLD | Number of packets to queue inside the kernel before sending them to userspace | uint32                                                           |
 
 **Exclude** flag is true when the condition specified by the rules should be inverted. Example, L4 condition specifies match on tcp traffic for a range of ports 1025-1028, setting **Exclude** to *true* will match every tcp port with the exception of the ports specified in the range. 
 
