@@ -77,9 +77,19 @@ func marshalSetElements(elements []nftables.SetElement) ([]byte, error) {
 			// It is unknown value
 			jsonData = append(jsonData, []byte(fmt.Sprintf("\"%v\"", element.Key))...)
 		}
+		jsonData = append(jsonData, []byte(",\"IntervalEnd\":")...)
+		jsonData = append(jsonData, []byte(fmt.Sprintf("%t", element.IntervalEnd))...)
 
 		jsonData = append(jsonData, []byte(",\"Val\":")...)
-		jsonData = append(jsonData, []byte(fmt.Sprintf("\"%s\"", element.Val))...)
+		jsonData = append(jsonData, '[')
+		for i := 0; i < len(element.Val); i++ {
+			jsonData = append(jsonData, fmt.Sprintf("\"%#x\"", element.Val[i])...)
+			if i < len(element.Val)-1 {
+				jsonData = append(jsonData, ',')
+			}
+		}
+		jsonData = append(jsonData, ']')
+
 		jsonData = append(jsonData, '}')
 		if i < len(elements)-1 {
 			jsonData = append(jsonData, ',')

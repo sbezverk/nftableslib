@@ -62,17 +62,24 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 		Name:      getSetName(),
 		ID:        uint32(rand.Intn(0xffff)),
 	}
-	se := make([]nftables.SetElement, len(list))
-	if l3proto == nftables.TableFamilyIPv4 {
-		for i := 0; i < len(list); i++ {
-			se[i].Key = list[i].IP.To4()
+	var se []nftables.SetElement
+
+	se = buildElementRanges(list)
+	set.Interval = true
+	/*
+		if l3proto == nftables.TableFamilyIPv4 {
+			se = buildElementRanges(list)
+			set.Interval = true
+			//		}
 		}
-	}
-	if l3proto == nftables.TableFamilyIPv6 {
-		for i := 0; i < len(list); i++ {
-			se[i].Key = list[i].IP.To16()
+
+		if l3proto == nftables.TableFamilyIPv6 {
+			se = make([]nftables.SetElement, len(list))
+			for i := 0; i < len(list); i++ {
+				se[i].Key = list[i].IP.To16()
+			}
 		}
-	}
+	*/
 	if len(se) == 0 {
 		return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 	}
