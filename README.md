@@ -80,7 +80,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/nftables"
-	"github.com/google/nftables/expr"
 	"github.com/sbezverk/nftableslib"
 )
 
