@@ -16,4 +16,3 @@ require (
 	golang.org/x/tools v0.0.0-20190813142322-97f12d73768f // indirect
 )
 
-replace github.com/google/nftables => ../nftables
