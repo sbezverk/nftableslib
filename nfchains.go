@@ -14,13 +14,14 @@ type ChainsInterface interface {
 }
 
 // ChainPolicy defines type for chain policies
-type ChainPolicy string
+type ChainPolicy uint32
 
 const (
 	// ChainPolicyAccept defines "accept" chain policy
-	ChainPolicyAccept ChainPolicy = "accept"
+	ChainPolicyAccept ChainPolicy = 1
 	// ChainPolicyDrop defines "drop" chain policy
-	ChainPolicyDrop ChainPolicy = "drop"
+	ChainPolicyDrop ChainPolicy = 0
+	// TODO Need to figure out value of chain's drop policy
 )
 
 // ChainAttributes defines attributes which can be apply to a chain of BASE type
@@ -49,6 +50,7 @@ type ChainFuncs interface {
 	CreateImm(name string, attributes *ChainAttributes) error
 	Delete(name string) error
 	DeleteImm(name string) error
+	Sync() error
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
 }
@@ -102,6 +104,7 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 			Priority: attributes.Priority,
 			Table:    nfc.table,
 			Type:     attributes.Type,
+			Policy:   uint32(attributes.Policy),
 		})
 	} else {
 		baseChain = false
@@ -146,22 +149,49 @@ func (nfc *nfChains) DeleteImm(name string) error {
 	return nfc.conn.Flush()
 }
 
+func (nfc *nfChains) Sync() error {
+	chains, err := nfc.conn.ListChains()
+	if err != nil {
+		return err
+	}
+	for _, chain := range chains {
+		if chain.Table.Name == nfc.table.Name && chain.Table.Family == nfc.table.Family {
+			baseChain := false
+			if chain.Type != "" && chain.Hooknum != 0 {
+				baseChain = true
+			}
+			nfc.Lock()
+			nfc.chains[chain.Name] = &nfChain{
+				chain:          chain,
+				baseChain:      baseChain,
+				RulesInterface: newRules(nfc.conn, nfc.table, chain),
+			}
+			nfc.Unlock()
+			if err := nfc.chains[chain.Name].Rules().Sync(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (nfc *nfChains) Dump() ([]byte, error) {
 	nfc.Lock()
 	defer nfc.Unlock()
 	var data []byte
 
 	for _, c := range nfc.chains {
-		if b, err := json.Marshal(&c.chain); err != nil {
+		b, err := json.Marshal(&c.chain)
+		if err != nil {
 			return nil, err
-		} else {
-			data = append(data, b...)
 		}
-		if b, err := c.Rules().Dump(); err != nil {
+		data = append(data, b...)
+		b, err = c.Rules().Dump()
+		if err != nil {
 			return nil, err
-		} else {
-			data = append(data, b...)
 		}
+		data = append(data, b...)
 	}
 
 	return data, nil

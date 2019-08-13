@@ -66,25 +66,13 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 
 	se = buildElementRanges(list)
 	set.Interval = true
-	/*
-		if l3proto == nftables.TableFamilyIPv4 {
-			se = buildElementRanges(list)
-			set.Interval = true
-			//		}
-		}
 
-		if l3proto == nftables.TableFamilyIPv6 {
-			se = make([]nftables.SetElement, len(list))
-			for i := 0; i < len(list); i++ {
-				se[i].Key = list[i].IP.To16()
-			}
-		}
-	*/
 	if len(se) == 0 {
 		return nil, nil, fmt.Errorf("unknown nftables.TableFamily %#02x", l3proto)
 	}
 	nfset.set = set
 	nfset.elements = se
+	fmt.Printf("Dumping set in nftableslib %+v\n", set)
 	re, err := getExprForListIP(l3proto, set, offset, excl)
 	if err != nil {
 		return nil, nil, err
