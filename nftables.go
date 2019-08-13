@@ -15,6 +15,7 @@ type NetNS interface {
 	DelTable(*nftables.Table)
 	DelChain(*nftables.Chain)
 	AddTable(*nftables.Table) *nftables.Table
+	ListTables() ([]*nftables.Table, error)
 	AddChain(*nftables.Chain) *nftables.Chain
 	AddRule(*nftables.Rule) *nftables.Rule
 	DelRule(*nftables.Rule) error
