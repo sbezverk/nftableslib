@@ -35,6 +35,7 @@ type RuleFuncs interface {
 	Insert(*Rule, int) (uint32, error)
 	InsertImm(*Rule, int) (uint32, error)
 	Dump() ([]byte, error)
+	Sync() error
 	UpdateRulesHandle() error
 	GetRuleHandle(id uint32) (uint64, error)
 }
@@ -229,6 +230,65 @@ func (nfr *nfRules) Dump() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func (nfr *nfRules) Sync() error {
+	rules, err := nfr.conn.GetRule(nfr.table, nfr.chain)
+	if err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		sets := make([]*nfSet, 0)
+		for _, e := range rule.Exprs {
+			exp, ok := e.(*expr.Lookup)
+			if !ok {
+				continue
+			}
+			set, err := nfr.getSet(exp.SetName)
+			if err != nil {
+				return err
+			}
+			elements, err := nfr.getSetElements(set)
+			if err != nil {
+				return err
+			}
+			set.DataLen = len(elements)
+			sets = append(sets, &nfSet{set: set, elements: elements})
+
+		}
+		rr := &nfRule{}
+		rr.rule = rule
+		if len(sets) != 0 {
+			rr.sets = sets
+		}
+		nfr.addRule(rr)
+	}
+
+	return nil
+}
+
+func (nfr *nfRules) getSet(name string) (*nftables.Set, error) {
+	sets, err := nfr.conn.GetSets(nfr.table)
+	if err != nil {
+		return nil, err
+	}
+	for _, set := range sets {
+		if set.Name == name {
+			set.Table = nfr.table
+			return set, nil
+		}
+	}
+
+	return &nftables.Set{}, nil
+}
+
+func (nfr *nfRules) getSetElements(set *nftables.Set) ([]nftables.SetElement, error) {
+	elements, err := nfr.conn.GetSetElements(set)
+	if err != nil {
+		return nil, err
+	}
+
+	return elements, nil
 }
 
 // UpdateRulesHandle populates rule's handle information with handle value allocated by the kernel.

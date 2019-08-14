@@ -9,13 +9,19 @@ import (
 type Interface interface {
 	Flush() error
 	FlushRuleset()
-	DelTable(*nftables.Table)
 	AddTable(*nftables.Table) *nftables.Table
+	DelTable(*nftables.Table)
+	ListTables() ([]*nftables.Table, error)
 	AddChain(*nftables.Chain) *nftables.Chain
+	DelChain(*nftables.Chain)
+	ListChains() ([]*nftables.Chain, error)
 	AddRule(*nftables.Rule) *nftables.Rule
 	DelRule(*nftables.Rule) error
-	AddSet(*nftables.Set, []nftables.SetElement) error
+	GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, error)
 	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
+	AddSet(*nftables.Set, []nftables.SetElement) error
+	GetSets(*nftables.Table) ([]*nftables.Set, error)
+	GetSetElements(*nftables.Set) ([]nftables.SetElement, error)
 }
 
 // Mock defines type and methods to simulate operations with tables
@@ -73,6 +79,31 @@ func (m *Mock) AddSet(s *nftables.Set, se []nftables.SetElement) error {
 // GetRuleHandle not used
 func (m *Mock) GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error) {
 	return 0, nil
+}
+
+// GetRule not implemented yet
+func (m *Mock) GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, error) {
+	return nil, nil
+}
+
+// GetSetElements not implemented yet
+func (m *Mock) GetSetElements(*nftables.Set) ([]nftables.SetElement, error) {
+	return nil, nil
+}
+
+// GetSets not implemented yet
+func (m *Mock) GetSets(*nftables.Table) ([]*nftables.Set, error) {
+	return nil, nil
+}
+
+// ListChains not implemented yet
+func (m *Mock) ListChains() ([]*nftables.Chain, error) {
+	return nil, nil
+}
+
+// ListTables not implemented yet
+func (m *Mock) ListTables() ([]*nftables.Table, error) {
+	return nil, nil
 }
 
 // InitMockConn initializes mock connection of the nftables family

@@ -1,0 +1,24 @@
+package nftableslib
+
+import (
+	"github.com/google/nftables"
+)
+
+// NetNS defines interface needed to nf tables
+type NetNS interface {
+	Flush() error
+	FlushRuleset()
+	AddTable(*nftables.Table) *nftables.Table
+	DelTable(*nftables.Table)
+	ListTables() ([]*nftables.Table, error)
+	AddChain(*nftables.Chain) *nftables.Chain
+	DelChain(*nftables.Chain)
+	ListChains() ([]*nftables.Chain, error)
+	AddRule(*nftables.Rule) *nftables.Rule
+	DelRule(*nftables.Rule) error
+	GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, error)
+	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
+	AddSet(*nftables.Set, []nftables.SetElement) error
+	GetSets(*nftables.Table) ([]*nftables.Set, error)
+	GetSetElements(*nftables.Set) ([]nftables.SetElement, error)
+}

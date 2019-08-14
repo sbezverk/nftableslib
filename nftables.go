@@ -8,20 +8,6 @@ import (
 	"github.com/google/nftables"
 )
 
-// NetNS defines interface needed to nf tables
-type NetNS interface {
-	Flush() error
-	FlushRuleset()
-	DelTable(*nftables.Table)
-	DelChain(*nftables.Chain)
-	AddTable(*nftables.Table) *nftables.Table
-	AddChain(*nftables.Chain) *nftables.Chain
-	AddRule(*nftables.Rule) *nftables.Rule
-	DelRule(*nftables.Rule) error
-	AddSet(*nftables.Set, []nftables.SetElement) error
-	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
-}
-
 // TablesInterface defines a top level interface
 type TablesInterface interface {
 	Tables() TableFuncs
@@ -35,6 +21,8 @@ type TableFuncs interface {
 	CreateImm(name string, familyType nftables.TableFamily) error
 	DeleteImm(name string, familyType nftables.TableFamily) error
 	Exist(name string, familyType nftables.TableFamily) bool
+	Get(familyType nftables.TableFamily) ([]string, error)
+	Sync(familyType nftables.TableFamily) error
 	Dump() ([]byte, error)
 }
 
@@ -64,7 +52,7 @@ func InitConn(netns ...int) *nftables.Conn {
 func InitNFTables(conn NetNS) TablesInterface {
 	// if netns is not specified, global namespace is used
 	ts := nfTables{
-		tables: map[nftables.TableFamily]map[string]*nfTable{},
+		tables: make(map[nftables.TableFamily]map[string]*nfTable),
 	}
 	ts.conn = conn
 
@@ -91,25 +79,34 @@ func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (Chains
 
 // Create appends a table into NF tables list
 func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error {
+	t, err := nft.create(name, familyType)
+	if err != nil {
+		return err
+	}
+	nft.conn.AddTable(t.table)
+
+	return nil
+}
+
+func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTable, error) {
 	nft.Lock()
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
-	if _, ok := nft.tables[familyType][name]; ok {
-		return fmt.Errorf("table %s of type %+v already exists", name, familyType)
-		//		nft.Conn.DelTable(nft.tables[familyType][name].table)
-		// Removing old table, at this point, this table should be removed from the kernel as well.
-		//		delete(nft.tables[familyType], name)
+	if _, ok := nft.tables[familyType]; !ok {
+		nft.tables[familyType] = make(map[string]*nfTable)
+	} else if _, ok := nft.tables[familyType][name]; ok {
+		return nil, fmt.Errorf("table %s of type %+v already exists", name, familyType)
 	}
-	t := nft.conn.AddTable(&nftables.Table{
+	t := &nftables.Table{
 		Family: familyType,
 		Name:   name,
-	})
-	nft.tables[familyType] = make(map[string]*nfTable)
+	}
 	nft.tables[familyType][name] = &nfTable{
 		table:           t,
 		ChainsInterface: newChains(nft.conn, t),
 	}
-	return nil
+
+	return nft.tables[familyType][name], nil
 }
 
 // Create appends a table into NF tables list and request to program it immediately
@@ -154,6 +151,54 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 		return true
 	}
 	return false
+}
+
+// Get returns all tables defined for a specific TableFamily
+func (nft *nfTables) Get(familyType nftables.TableFamily) ([]string, error) {
+	nft.Lock()
+	defer nft.Unlock()
+	nftables, err := nft.conn.ListTables()
+	if err != nil {
+		return nil, err
+	}
+
+	var tables []string
+	for _, t := range nftables {
+		if t.Family == familyType {
+			tables = append(tables, t.Name)
+		}
+	}
+
+	return tables, nil
+}
+
+// Sync synchronizes tables defined on the host with tables store, newly discovered
+// tables will be added, stale will be removed fomr the store.
+func (nft *nfTables) Sync(familyType nftables.TableFamily) error {
+	nft.Lock()
+	nftables, err := nft.conn.ListTables()
+	if err != nil {
+		return err
+	}
+	nft.Unlock()
+
+	// Getting  list of tables defined on the host
+	for _, t := range nftables {
+		if t.Family == familyType {
+			if !nft.Exist(t.Name, t.Family) {
+				nt, err := nft.create(t.Name, t.Family)
+				if err != nil {
+					return err
+				}
+				// Sync synchronizes all chains discovered in the table
+				if err := nt.Chains().Sync(); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // Dump outputs json representation of all defined tables/chains/rules

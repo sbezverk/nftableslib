@@ -72,6 +72,7 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	}
 	nfset.set = set
 	nfset.elements = se
+	fmt.Printf("Dumping set in nftableslib %+v\n", set)
 	re, err := getExprForListIP(l3proto, set, offset, excl)
 	if err != nil {
 		return nil, nil, err
