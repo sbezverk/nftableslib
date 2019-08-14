@@ -15,4 +15,3 @@ require (
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20190813142322-97f12d73768f // indirect
 )
-
