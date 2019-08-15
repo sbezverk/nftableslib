@@ -1,6 +1,8 @@
 package nftableslib
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -38,6 +40,7 @@ type RuleFuncs interface {
 	Sync() error
 	UpdateRulesHandle() error
 	GetRuleHandle(id uint32) (uint64, error)
+	GetRulesUserData() ([][]byte, error)
 }
 
 type nfRules struct {
@@ -61,6 +64,11 @@ type nfRule struct {
 	sync.Mutex
 	next *nfRule
 	prev *nfRule
+}
+
+type nfUserData struct {
+	RuleID  uint32
+	AppData []byte
 }
 
 func (nfr *nfRules) Rules() RuleFuncs {
@@ -135,6 +143,22 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 		// Used by Insert call
 		r.Position = uint64(position)
 	}
+	// Allocating UserData struct for ruleID
+	userData := &nfUserData{
+		// rule's ID is populated by fr.addRule(rr)
+		RuleID: rr.id,
+	}
+	// If higher level app passes some arbitrary metadata for the rule, store it to nfUserData appData
+	if rule.UserData != nil {
+		userData.AppData = make([]byte, len(rule.UserData))
+		copy(userData.AppData, rule.UserData)
+	}
+	// Encoding nfUserData into []byte to send as nftables.UserData
+	buffer := new(bytes.Buffer)
+	enc := gob.NewEncoder(buffer)
+	enc.Encode(userData)
+	r.UserData = buffer.Bytes()
+
 	// Pushing rule to netlink library to be programmed by Flsuh()
 	nfr.conn.AddRule(r)
 
@@ -146,7 +170,6 @@ func (nfr *nfRules) CreateImm(rule *Rule) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	// Programming rule
 	if err := nfr.conn.Flush(); err != nil {
 		return 0, err
@@ -296,7 +319,7 @@ func (nfr *nfRules) getSetElements(set *nftables.Set) ([]nftables.SetElement, er
 func (nfr *nfRules) UpdateRulesHandle() error {
 	r := nfr.rules
 	for ; r != nil; r = r.next {
-		handle, err := nfr.conn.GetRuleHandle(nfr.table, nfr.chain, r.id)
+		handle, err := nfr.GetRuleHandle(r.id)
 		if err != nil {
 			return err
 		}
@@ -322,7 +345,47 @@ func (nfr *nfRules) UpdateRuleHandleByID(id uint32, handle uint64) error {
 
 // GetRuleHandle gets a handle of rule specified by its id
 func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
-	return nfr.conn.GetRuleHandle(nfr.table, nfr.chain, id)
+	rules, err := nfr.conn.GetRule(nfr.table, nfr.chain)
+	if err != nil {
+		return 0, err
+	}
+	for _, rule := range rules {
+		if rule.UserData != nil {
+			userData := nfUserData{}
+			dr := bytes.NewReader(rule.UserData)
+			dec := gob.NewDecoder(dr)
+			if err := dec.Decode(&userData); err != nil {
+				return 0, err
+			}
+			if userData.RuleID == id {
+				return rule.Handle, nil
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("rule with id %d is not found", id)
+}
+
+func (nfr *nfRules) GetRulesUserData() ([][]byte, error) {
+	rules, err := nfr.conn.GetRule(nfr.table, nfr.chain)
+	if err != nil {
+		return nil, err
+	}
+	ud := [][]byte{}
+	for _, rule := range rules {
+		if rule.UserData != nil {
+			userData := &nfUserData{}
+			dr := bytes.NewReader(rule.UserData)
+			dec := gob.NewDecoder(dr)
+			if err := dec.Decode(userData); err != nil {
+				return nil, err
+			}
+			if userData.AppData != nil {
+				ud = append(ud, userData.AppData)
+			}
+		}
+	}
+	return ud, nil
 }
 
 func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
@@ -639,12 +702,13 @@ func SetLog(key int, value []byte) (*Log, error) {
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3      *L3Rule
-	L4      *L4Rule
-	Meta    *Meta
-	Log     *Log
-	Exclude bool
-	Action  *RuleAction
+	L3       *L3Rule
+	L4       *L4Rule
+	Meta     *Meta
+	Log      *Log
+	Exclude  bool
+	Action   *RuleAction
+	UserData []byte
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found

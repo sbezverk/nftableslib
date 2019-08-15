@@ -13,10 +13,8 @@ func TestAddRule(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		r.addRule(&nfRule{
-			id: uint32(i),
-			rule: &nftables.Rule{
-				RuleID: uint32((i + 1) * 10),
-			},
+			id:   uint32(i),
+			rule: &nftables.Rule{},
 		})
 	}
 
@@ -78,10 +76,8 @@ func TestRemoveRule(t *testing.T) {
 		}
 		for i := 0; i < tt.number; i++ {
 			r.addRule(&nfRule{
-				id: uint32((i + 1) * 10),
-				rule: &nftables.Rule{
-					RuleID: uint32((i + 1) * 10),
-				},
+				id:   uint32((i + 1) * 10),
+				rule: &nftables.Rule{},
 			})
 		}
 		err := r.removeRule(tt.removeID)

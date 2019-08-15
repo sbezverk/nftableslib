@@ -5,25 +5,6 @@ import (
 	"github.com/sbezverk/nftableslib"
 )
 
-// Interface defines methods for mock driver
-type Interface interface {
-	Flush() error
-	FlushRuleset()
-	AddTable(*nftables.Table) *nftables.Table
-	DelTable(*nftables.Table)
-	ListTables() ([]*nftables.Table, error)
-	AddChain(*nftables.Chain) *nftables.Chain
-	DelChain(*nftables.Chain)
-	ListChains() ([]*nftables.Chain, error)
-	AddRule(*nftables.Rule) *nftables.Rule
-	DelRule(*nftables.Rule) error
-	GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, error)
-	GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error)
-	AddSet(*nftables.Set, []nftables.SetElement) error
-	GetSets(*nftables.Table) ([]*nftables.Set, error)
-	GetSetElements(*nftables.Set) ([]nftables.SetElement, error)
-}
-
 // Mock defines type and methods to simulate operations with tables
 type Mock struct {
 	ti nftableslib.TablesInterface
@@ -74,11 +55,6 @@ func (m *Mock) DelChain(c *nftables.Chain) {
 // AddSet not used
 func (m *Mock) AddSet(s *nftables.Set, se []nftables.SetElement) error {
 	return nil
-}
-
-// GetRuleHandle not used
-func (m *Mock) GetRuleHandle(t *nftables.Table, c *nftables.Chain, ruleID uint32) (uint64, error) {
-	return 0, nil
 }
 
 // GetRule not implemented yet

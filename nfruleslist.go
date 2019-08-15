@@ -16,7 +16,6 @@ func (r *nfRules) addRule(e *nfRule) {
 		r.rules.prev = nil
 		r.currentID = initialRuleID
 		r.rules.id = initialRuleID
-		r.rules.rule.RuleID = initialRuleID
 		r.currentID += ruleIDIncrement
 		return
 	}
@@ -31,7 +30,6 @@ func (r *nfRules) addRule(e *nfRule) {
 	last.next.next = nil
 	last.next.prev = last
 	last.next.id = r.currentID
-	last.next.rule.RuleID = r.currentID
 	r.currentID += ruleIDIncrement
 
 	return
@@ -96,7 +94,7 @@ func getRuleByID(e *nfRule, id uint32) (*nfRule, error) {
 	if e == nil {
 		return nil, fmt.Errorf("rule with id %d not found", id)
 	}
-	if e.rule.RuleID == id {
+	if e.id == id {
 		return e, nil
 	}
 	return getRuleByID(e.next, id)
