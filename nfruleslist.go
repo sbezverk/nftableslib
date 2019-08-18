@@ -99,3 +99,13 @@ func getRuleByID(e *nfRule, id uint32) (*nfRule, error) {
 	}
 	return getRuleByID(e.next, id)
 }
+
+func getRuleByHandle(e *nfRule, handle uint64) (*nfRule, error) {
+	if e == nil {
+		return nil, fmt.Errorf("rule with handle %d not found", handle)
+	}
+	if e.rule.Handle == handle {
+		return e, nil
+	}
+	return getRuleByHandle(e.next, handle)
+}

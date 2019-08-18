@@ -31,16 +31,17 @@ type RulesInterface interface {
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
 	Create(*Rule) (uint32, error)
-	CreateImm(*Rule) (uint32, error)
+	CreateImm(*Rule) (uint64, error)
 	Delete(uint32) error
 	DeleteImm(uint32) error
 	Insert(*Rule, int) (uint32, error)
-	InsertImm(*Rule, int) (uint32, error)
+	InsertImm(*Rule, int) (uint64, error)
+	Update(*Rule, uint64) error
 	Dump() ([]byte, error)
 	Sync() error
 	UpdateRulesHandle() error
 	GetRuleHandle(id uint32) (uint64, error)
-	GetRulesUserData() ([][]byte, error)
+	GetRulesUserData() (map[uint64][]byte, error)
 }
 
 type nfRules struct {
@@ -75,11 +76,7 @@ func (nfr *nfRules) Rules() RuleFuncs {
 	return nfr
 }
 
-func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
-	return nfr.create(rule, 0)
-}
-
-func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
+func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	r := &nftables.Rule{}
 	var err error
 	var sets []*nfSet
@@ -87,7 +84,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	e := []expr.Any{}
 	if rule.L3 != nil {
 		if e, set, err = createL3(nfr.table.Family, rule); err != nil {
-			return 0, nil
+			return nil, nil
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -95,7 +92,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 
 	if rule.L4 != nil {
 		if e, set, err = createL4(nfr.table.Family, rule); err != nil {
-			return 0, nil
+			return nil, nil
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -128,20 +125,34 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	r.Chain = nfr.chain
 
 	rr := &nfRule{}
+	rr.rule = r
 	for _, s := range sets {
 		s.set.Table = nfr.table
 		if err := nfr.conn.AddSet(s.set, s.elements); err != nil {
-			return 0, err
+			return nil, err
 		}
 		s.set.DataLen = len(s.elements)
 		rr.sets = append(rr.sets, s)
 	}
 
-	rr.rule = r
+	return rr, nil
+}
+
+func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
+	return nfr.create(rule, 0)
+}
+
+func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
+	// Process all user specified expressions and return nfRule
+	rr, err := nfr.buildRule(rule)
+	if err != nil {
+		return 0, err
+	}
+	// Adding nfRule to the list
 	nfr.addRule(rr)
 	if position != 0 {
 		// Used by Insert call
-		r.Position = uint64(position)
+		rr.rule.Position = uint64(position)
 	}
 	// Allocating UserData struct for ruleID
 	userData := &nfUserData{
@@ -157,15 +168,15 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	buffer := new(bytes.Buffer)
 	enc := gob.NewEncoder(buffer)
 	enc.Encode(userData)
-	r.UserData = buffer.Bytes()
+	rr.rule.UserData = buffer.Bytes()
 
 	// Pushing rule to netlink library to be programmed by Flsuh()
-	nfr.conn.AddRule(r)
+	nfr.conn.AddRule(rr.rule)
 
 	return rr.id, nil
 }
 
-func (nfr *nfRules) CreateImm(rule *Rule) (uint32, error) {
+func (nfr *nfRules) CreateImm(rule *Rule) (uint64, error) {
 	id, err := nfr.Create(rule)
 	if err != nil {
 		return 0, err
@@ -183,7 +194,7 @@ func (nfr *nfRules) CreateImm(rule *Rule) (uint32, error) {
 		return 0, err
 	}
 
-	return id, nil
+	return handle, nil
 }
 
 func (nfr *nfRules) Delete(id uint32) error {
@@ -218,7 +229,7 @@ func (nfr *nfRules) Insert(rule *Rule, position int) (uint32, error) {
 	return nfr.create(rule, position)
 }
 
-func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint32, error) {
+func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint64, error) {
 	id, err := nfr.Insert(rule, position)
 	if err != nil {
 		return 0, err
@@ -236,7 +247,44 @@ func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint32, error) {
 		return 0, err
 	}
 
-	return id, nil
+	return handle, nil
+}
+
+func (nfr *nfRules) Update(rule *Rule, handle uint64) error {
+	nfrule, err := getRuleByHandle(nfr.rules, handle)
+	if err != nil {
+		return err
+	}
+	r, err := nfr.buildRule(rule)
+	if err != nil {
+		return err
+	}
+	r.rule.Handle = handle
+	// If higher level app passes some arbitrary metadata for the rule, store it to nfUserData appData
+	if rule.UserData != nil {
+		userData := &nfUserData{}
+		userData.AppData = make([]byte, len(rule.UserData))
+		copy(userData.AppData, rule.UserData)
+		// Encoding nfUserData into []byte to send as nftables.UserData
+		buffer := new(bytes.Buffer)
+		enc := gob.NewEncoder(buffer)
+		enc.Encode(userData)
+		r.rule.UserData = buffer.Bytes()
+	}
+	// Updating rule expressions and sets but preserving pointers to prev and next
+	nfrule.Lock()
+	nfrule.rule = r.rule
+	nfrule.sets = r.sets
+	nfrule.Unlock()
+
+	// Pushing rule to netlink library to be programmed by Flush()
+	nfr.conn.AddRule(nfrule.rule)
+	// Programming Update rule
+	if err := nfr.conn.Flush(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (nfr *nfRules) Dump() ([]byte, error) {
@@ -366,12 +414,12 @@ func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
 	return 0, fmt.Errorf("rule with id %d is not found", id)
 }
 
-func (nfr *nfRules) GetRulesUserData() ([][]byte, error) {
+func (nfr *nfRules) GetRulesUserData() (map[uint64][]byte, error) {
 	rules, err := nfr.conn.GetRule(nfr.table, nfr.chain)
 	if err != nil {
 		return nil, err
 	}
-	ud := [][]byte{}
+	ud := make(map[uint64][]byte, 0)
 	for _, rule := range rules {
 		if rule.UserData != nil {
 			userData := &nfUserData{}
@@ -380,8 +428,10 @@ func (nfr *nfRules) GetRulesUserData() ([][]byte, error) {
 			if err := dec.Decode(userData); err != nil {
 				return nil, err
 			}
+			// If rule has some application specific data, return it in the map with rule's
+			// handle as a key
 			if userData.AppData != nil {
-				ud = append(ud, userData.AppData)
+				ud[rule.Handle] = userData.AppData
 			}
 		}
 	}
@@ -700,15 +750,22 @@ func SetLog(key int, value []byte) (*Log, error) {
 	return &Log{Key: uint32(key), Value: value}, nil
 }
 
+// Conntrack defines a key and  value for Ccnnection tracking
+type Conntrack struct {
+	Key   uint32
+	Value []byte
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3       *L3Rule
-	L4       *L4Rule
-	Meta     *Meta
-	Log      *Log
-	Exclude  bool
-	Action   *RuleAction
-	UserData []byte
+	L3         *L3Rule
+	L4         *L4Rule
+	Conntracks []*Conntrack
+	Meta       *Meta
+	Log        *Log
+	Exclude    bool
+	Action     *RuleAction
+	UserData   []byte
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found
