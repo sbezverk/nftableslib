@@ -147,9 +147,27 @@ func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) error 
 
 // Exist checks is the table already defined
 func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
+	// Check if Table exists in the store
 	if _, ok := nft.tables[familyType][name]; ok {
 		return true
 	}
+	// It is not in the store, let's double check if it exists on the host
+	tables, err := nft.Get(familyType)
+	if err != nil {
+		return false
+	}
+	for _, table := range tables {
+		if table == name {
+			// Found a table missing from the store, adding it
+			// Sync will load all missing tables of a specific Family into the store,
+			// TODO Consider creating SyncTable(name, familyType) function.
+			if err := nft.Sync(familyType); err == nil {
+				return true
+			}
+			break
+		}
+	}
+
 	return false
 }
 
@@ -185,7 +203,7 @@ func (nft *nfTables) Sync(familyType nftables.TableFamily) error {
 	// Getting  list of tables defined on the host
 	for _, t := range nftables {
 		if t.Family == familyType {
-			if !nft.Exist(t.Name, t.Family) {
+			if _, ok := nft.tables[familyType][t.Name]; !ok {
 				nt, err := nft.create(t.Name, t.Family)
 				if err != nil {
 					return err
