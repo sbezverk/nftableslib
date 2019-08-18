@@ -50,6 +50,7 @@ type ChainFuncs interface {
 	CreateImm(name string, attributes *ChainAttributes) error
 	Delete(name string) error
 	DeleteImm(name string) error
+	Exist(name string) bool
 	Sync() error
 	Dump() ([]byte, error)
 	// TODO figure out what other methods are needed and them
@@ -195,6 +196,34 @@ func (nfc *nfChains) Dump() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// Exist checks is the chain already defined
+func (nfc *nfChains) Exist(name string) bool {
+	// Check if Chain exists in the store
+	if _, ok := nfc.chains[name]; ok {
+		return true
+	}
+	// It is not in the store, let's double check if it exists on the host
+	chains, err := nfc.conn.ListChains()
+	if err != nil {
+		return false
+	}
+	for _, chain := range chains {
+		if chain.Name == name {
+			if nfc.table.Name == chain.Table.Name && nfc.table.Family == chain.Table.Family {
+				// Found a chain is missing from the store, adding it
+				// Sync will load all missing chain,
+				// TODO Consider creating SyncChain(name) function.
+				if err := nfc.Sync(); err == nil {
+					return true
+				}
+				break
+			}
+		}
+	}
+
+	return false
 }
 
 func newChains(conn NetNS, t *nftables.Table) ChainsInterface {
