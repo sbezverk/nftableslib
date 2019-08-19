@@ -105,22 +105,44 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	}
 	// Check if Meta is specified appending to rule's list of expressions
 	if rule.Meta != nil {
-		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
+		switch {
+		case rule.Meta.Mark != nil:
+			r.Exprs = append(r.Exprs, getExprForMetaMark(rule.Meta.Mark)...)
+		}
 	}
 	// Check if Meta is specified appending to rule's list of expressions
 	if rule.Log != nil {
 		r.Exprs = append(r.Exprs, getExprForLog(rule.Log)...)
 	}
-	if rule.Action.redirect != nil {
-		if rule.Action.redirect.tproxy {
-			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		} else {
-			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		}
-	} else if rule.Action.verdict != nil {
-		r.Exprs = append(r.Exprs, rule.Action.verdict)
+
+	if len(rule.Conntracks) > 0 {
+		fmt.Printf("Adding contracks\n")
+		r.Exprs = append(r.Exprs, getExprForConntracks(rule.Conntracks)...)
 	}
 
+	if rule.Action != nil {
+		switch {
+		case rule.Action.redirect != nil:
+			if rule.Action.redirect.tproxy {
+				r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+			} else {
+				r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+			}
+		case rule.Action.verdict != nil:
+			r.Exprs = append(r.Exprs, rule.Action.verdict)
+		case rule.Action.masq != nil:
+			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
+		}
+		//		if rule.Action.redirect != nil {
+		//			if rule.Action.redirect.tproxy {
+		//				r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+		//			} else {
+		//				r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+		//			}
+		//		} else if rule.Action.verdict != nil {
+		//			r.Exprs = append(r.Exprs, rule.Action.verdict)
+		//		}
+	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
@@ -656,16 +678,34 @@ type redirect struct {
 	tproxy bool
 }
 
+// masquarade defines a struct describing Masquerade action, flags cannot be combined with
+// toPort
+type masquerade struct {
+	random      *bool
+	fullyRandom *bool
+	persistent  *bool
+	toPort      [2]*uint16
+}
+
+// MetaMark defines Mark keyword of Meta key
+// Mark can be used either to Set or Match a mark.
+// If Set is true, then the Value will be used to mark a packet,
+// and if Set is false, then the Value will be used to match packet's mark against it.
+type MetaMark struct {
+	Set   bool
+	Value int32
+}
+
 // Meta defines parameters used to build nft meta expression
 type Meta struct {
-	Key   uint32
-	Value []byte
+	Mark *MetaMark
 }
 
 // RuleAction defines what action needs to be executed on the rule match
 type RuleAction struct {
 	verdict  *expr.Verdict
 	redirect *redirect
+	masq     *masquerade
 }
 
 // SetVerdict builds RuleAction struct for Verdict based actions
@@ -683,6 +723,39 @@ func SetRedirect(port int, tproxy bool) (*RuleAction, error) {
 	if err := ra.setRedirect(port, tproxy); err != nil {
 		return nil, err
 	}
+	return ra, nil
+}
+
+// SetMasq builds RuleAction struct for Masquerade action
+func SetMasq(random, fullyRandom, persistent bool) (*RuleAction, error) {
+	ra := &RuleAction{}
+	ra.masq = &masquerade{}
+	ra.masq.random = &random
+	ra.masq.fullyRandom = &fullyRandom
+	ra.masq.persistent = &persistent
+
+	return ra, nil
+}
+
+// SetMasqToPort builds RuleAction struct for Masquerade action
+func SetMasqToPort(port ...int) (*RuleAction, error) {
+	ra := &RuleAction{}
+	ra.masq = &masquerade{}
+	if len(port) == 0 {
+		return nil, fmt.Errorf("no port provided")
+	}
+	if len(port) > 2 {
+		return nil, fmt.Errorf("more than maximum of 2 ports provided")
+	}
+	ports := [2]*uint16{}
+	p := uint16(port[0])
+	ports[0] = &p
+	if len(port) == 2 {
+		p := uint16(port[1])
+		ports[1] = &p
+	}
+	ra.masq.toPort = ports
+
 	return ra, nil
 }
 

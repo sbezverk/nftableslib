@@ -3,6 +3,8 @@ package nftableslib
 import (
 	"fmt"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/google/nftables"
 
 	"github.com/google/nftables/binaryutil"
@@ -381,14 +383,61 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) (
 	return re, nil
 }
 
-func getExprForMeta(meta *Meta) []expr.Any {
+func getExprForMetaMark(mark *MetaMark) []expr.Any {
 	re := []expr.Any{}
-	re = append(re, &expr.Meta{Key: expr.MetaKey(meta.Key), Register: 1})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     meta.Value,
-	})
+	if mark.Set {
+		// [ immediate reg 1 0x0000dead ]
+		// [ meta set mark with reg 1 ]
+		re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.NativeEndian.PutUint32(uint32(mark.Value))})
+		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: true})
+	} else {
+		// [ meta load mark => reg 1 ]
+		// [ cmp eq reg 1 0x0000dead ]
+		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: false})
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpEq,
+			Register: 1,
+			Data:     binaryutil.NativeEndian.PutUint32(uint32(mark.Value)),
+		})
+	}
+
+	return re
+}
+
+func getExprForMasq(masq *masquerade) []expr.Any {
+	re := []expr.Any{}
+	// Since masquerade flags and toPort are mutually exclusive, each case will generate different sequence of
+	// expressions
+	if masq.toPort[0] != nil {
+		m := &expr.Masq{ToPorts: true}
+		// Case  at least 1 toPort specified
+		//  [ immediate reg 1 0x00000004 ]
+		re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.BigEndian.PutUint32(uint32(*masq.toPort[0]))})
+		m.RegProtoMin = 1
+		m.RegProtoMax = 0
+		if masq.toPort[1] != nil {
+			// If second port is specified, then range of ports will be used.
+			// [ immediate reg 2 0x00000008 ]
+			re = append(re, &expr.Immediate{Register: 2, Data: binaryutil.BigEndian.PutUint32(uint32(*masq.toPort[1]))})
+			m.RegProtoMax = 2
+		}
+		// [ masq proto_min reg 1 proto_max reg 2 ]
+		re = append(re, m)
+	} else {
+		// Since toPort[0] is nil, checking flags
+		//  [ masq flags value ]
+		var random, fullyRandom, persistent bool
+		if masq.random != nil {
+			random = *masq.random
+		}
+		if masq.fullyRandom != nil {
+			fullyRandom = *masq.fullyRandom
+		}
+		if masq.persistent != nil {
+			persistent = *masq.persistent
+		}
+		re = append(re, &expr.Masq{Random: random, FullyRandom: fullyRandom, Persistent: persistent, ToPorts: false})
+	}
 
 	return re
 }
@@ -396,6 +445,38 @@ func getExprForMeta(meta *Meta) []expr.Any {
 func getExprForLog(log *Log) []expr.Any {
 	re := []expr.Any{}
 	re = append(re, &expr.Log{Key: log.Key, Data: log.Value})
+
+	return re
+}
+
+func getExprForConntracks(cts []*Conntrack) []expr.Any {
+	re := []expr.Any{}
+	for _, ct := range cts {
+		switch ct.Key {
+		// List of supported conntrack keys
+		case unix.NFT_CT_STATE:
+			//	[ ct load state => reg 1 ]
+			//	[ bitwise reg 1 = (reg=1 & 0x00000008 ) ^ 0x00000000 ]
+			//	[ cmp neq reg 1 0x00000000 ]
+			re = append(re, &expr.Ct{Key: unix.NFT_CT_STATE, Register: 1})
+			re = append(re, &expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            4,
+				Mask:           ct.Value,
+				Xor:            []byte{0x0, 0x0, 0x0, 0x0},
+			})
+			re = append(re, &expr.Cmp{
+				Op:       expr.CmpOpNeq,
+				Register: 1,
+				Data:     []byte{0x0, 0x0, 0x0, 0x0},
+			})
+		case unix.NFT_CT_DIRECTION:
+		case unix.NFT_CT_STATUS:
+		case unix.NFT_CT_LABELS:
+		case unix.NFT_CT_EVENTMASK:
+		}
+	}
 
 	return re
 }
