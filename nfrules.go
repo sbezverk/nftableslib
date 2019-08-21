@@ -84,7 +84,7 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	e := []expr.Any{}
 	if rule.L3 != nil {
 		if e, set, err = createL3(nfr.table.Family, rule); err != nil {
-			return nil, nil
+			return nil, err
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -92,7 +92,7 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 
 	if rule.L4 != nil {
 		if e, set, err = createL4(nfr.table.Family, rule); err != nil {
-			return nil, nil
+			return nil, err
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -116,7 +116,6 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	}
 
 	if len(rule.Conntracks) > 0 {
-		fmt.Printf("Adding contracks\n")
 		r.Exprs = append(r.Exprs, getExprForConntracks(rule.Conntracks)...)
 	}
 
@@ -133,15 +132,6 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		case rule.Action.masq != nil:
 			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
 		}
-		//		if rule.Action.redirect != nil {
-		//			if rule.Action.redirect.tproxy {
-		//				r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		//			} else {
-		//				r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		//			}
-		//		} else if rule.Action.verdict != nil {
-		//			r.Exprs = append(r.Exprs, rule.Action.verdict)
-		//		}
 	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
@@ -500,10 +490,20 @@ func (ip *IPAddr) Validate() error {
 	return nil
 }
 
+// Operator defines type used for relational operations in the rule
+type Operator byte
+
+// List of supported relational operations, starts with 0. if not specified, default 0 inidcates eq operator
+const (
+	EQ Operator = iota
+	NEQ
+)
+
 // IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddrSpec struct {
 	List  []*IPAddr
 	Range [2]*IPAddr
+	RelOp Operator
 }
 
 // NewIPAddr is a helper function which converts ip address into IPAddr format
@@ -576,6 +576,7 @@ type L3Rule struct {
 	Dst      *IPAddrSpec
 	Version  *byte
 	Protocol *uint32
+	RelOp    Operator
 }
 
 // L3Protocol is a helper function to convert a value of L3 protocol
@@ -609,6 +610,7 @@ func (l3 *L3Rule) Validate() error {
 type Port struct {
 	List  []*uint16
 	Range [2]*uint16
+	RelOp Operator
 }
 
 // SetPortList is a helper function which transforms a slice of int into
@@ -650,6 +652,7 @@ type L4Rule struct {
 	L4Proto uint8
 	Src     *Port
 	Dst     *Port
+	RelOp   Operator
 }
 
 // Validate checks parameters of L4Rule struct
@@ -836,7 +839,7 @@ type Rule struct {
 	Conntracks []*Conntrack
 	Meta       *Meta
 	Log        *Log
-	Exclude    bool
+	RelOp      Operator
 	Action     *RuleAction
 	UserData   []byte
 }
