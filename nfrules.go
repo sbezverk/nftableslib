@@ -131,6 +131,8 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			r.Exprs = append(r.Exprs, rule.Action.verdict)
 		case rule.Action.masq != nil:
 			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
+		case rule.Action.reject != nil:
+			r.Exprs = append(r.Exprs, getExprForReject(rule.Action.reject)...)
 		}
 	}
 	r.Table = nfr.table
@@ -690,6 +692,12 @@ type masquerade struct {
 	toPort      [2]*uint16
 }
 
+// reject defines reject action
+type reject struct {
+	rejectType uint32
+	rejectCode uint8
+}
+
 // MetaMark defines Mark keyword of Meta key
 // Mark can be used either to Set or Match a mark.
 // If Set is true, then the Value will be used to mark a packet,
@@ -709,6 +717,7 @@ type RuleAction struct {
 	verdict  *expr.Verdict
 	redirect *redirect
 	masq     *masquerade
+	reject   *reject
 }
 
 // SetVerdict builds RuleAction struct for Verdict based actions
@@ -758,6 +767,26 @@ func SetMasqToPort(port ...int) (*RuleAction, error) {
 		ports[1] = &p
 	}
 	ra.masq.toPort = ports
+
+	return ra, nil
+}
+
+const (
+	// NFT_ICMP_REJECT defines Reject type of ICMP
+	NFT_ICMP_REJECT = 0x0
+	// NFT_TCP_REJECT defines Reject type of TCP
+	NFT_TCP_REJECT = 0x1
+)
+
+// SetReject builds RuleAction struct for Reject action, rt defines Reject type ICMP or TCP
+// rc defines ICMP Reject Code
+func SetReject(rt int, rc int) (*RuleAction, error) {
+	ra := &RuleAction{
+		reject: &reject{
+			rejectType: uint32(rt),
+			rejectCode: uint8(rc),
+		},
+	}
 
 	return ra, nil
 }

@@ -426,6 +426,13 @@ func getExprForLog(log *Log) []expr.Any {
 	return re
 }
 
+func getExprForReject(r *reject) []expr.Any {
+	re := []expr.Any{}
+	re = append(re, &expr.Reject{Type: r.rejectType, Code: r.rejectCode})
+
+	return re
+}
+
 func getExprForConntracks(cts []*Conntrack) []expr.Any {
 	re := []expr.Any{}
 	for _, ct := range cts {
