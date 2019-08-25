@@ -381,6 +381,23 @@ func getExprForMetaMark(mark *MetaMark) []expr.Any {
 	return re
 }
 
+func getExprForMetaExpr(meta []MetaExpr) []expr.Any {
+	re := []expr.Any{}
+	for _, m := range meta {
+		op := expr.CmpOpEq
+		if m.RelOp == NEQ {
+			op = expr.CmpOpNeq
+		}
+		re = append(re, &expr.Meta{Key: expr.MetaKey(m.Key), Register: 1})
+		re = append(re, &expr.Cmp{
+			Op:       op,
+			Register: 1,
+			Data:     m.Value,
+		})
+	}
+	return re
+}
+
 func getExprForMasq(masq *masquerade) []expr.Any {
 	re := []expr.Any{}
 	// Since masquerade flags and toPort are mutually exclusive, each case will generate different sequence of
