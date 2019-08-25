@@ -3,6 +3,8 @@ package nftableslib
 import (
 	"fmt"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/google/nftables"
 
 	"github.com/google/nftables/binaryutil"
@@ -38,9 +40,8 @@ func outputIntfByName(intf string) []expr.Any {
 }
 
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
-func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, excl bool) ([]expr.Any, error) {
+func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, op Operator) ([]expr.Any, error) {
 	re := []expr.Any{}
-
 	addrLen := 4
 	if l3proto == nftables.TableFamilyIPv6 {
 		addrLen = 16
@@ -61,29 +62,20 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 	if len(baddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", addr.IP.String())
 	}
-	if addr.CIDR {
-		// Check specified subnet mask length so it would not exceed 32 for ipv4 and 128 for ipv6
-		if l3proto == nftables.TableFamilyIPv4 && *addr.Mask > uint8(32) {
-			return nil, fmt.Errorf("invalid mask length of %d for ipv4 address %s", *addr.Mask, addr.IP.String())
-		}
-		if l3proto == nftables.TableFamilyIPv6 && *addr.Mask > uint8(128) {
-			return nil, fmt.Errorf("invalid mask length of %d for ipv4 address %s", *addr.Mask, addr.IP.String())
-		}
-		xor = make([]byte, addrLen)
-		re = append(re, &expr.Bitwise{
-			SourceRegister: 1,
-			DestRegister:   1,
-			Len:            uint32(addrLen),
-			Mask:           buildMask(addrLen, *addr.Mask),
-			Xor:            xor,
-		})
-	}
-	op := expr.CmpOpEq
-	if excl {
-		op = expr.CmpOpNeq
+	xor = make([]byte, addrLen)
+	re = append(re, &expr.Bitwise{
+		SourceRegister: 1,
+		DestRegister:   1,
+		Len:            uint32(addrLen),
+		Mask:           buildMask(addrLen, *addr.Mask),
+		Xor:            xor,
+	})
+	cmpOp := expr.CmpOpEq
+	if op == NEQ {
+		cmpOp = expr.CmpOpNeq
 	}
 	re = append(re, &expr.Cmp{
-		Op:       op,
+		Op:       cmpOp,
 		Register: 1,
 		Data:     baddr,
 	})
@@ -92,7 +84,7 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 }
 
 // getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
-func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset uint32, excl bool) ([]expr.Any, error) {
+func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset uint32, op Operator) ([]expr.Any, error) {
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -105,7 +97,10 @@ func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset ui
 		Offset:       offset,          // Offset ip address in network header
 		Len:          uint32(addrLen), // length bytes for ip address
 	})
-
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
 	re = append(re, &expr.Lookup{
 		SourceRegister: 1,
 		Invert:         excl,
@@ -117,7 +112,7 @@ func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset ui
 }
 
 // getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
-func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool) ([]expr.Any, error) {
+func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, op Operator) ([]expr.Any, error) {
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -145,7 +140,7 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAd
 	if len(toAddr) == 0 {
 		return nil, fmt.Errorf("invalid ip %s", rng[1].IP.String())
 	}
-	if excl {
+	if op == NEQ {
 		re = append(re, &expr.Range{
 			Op:       expr.CmpOpNeq,
 			Register: 1,
@@ -169,11 +164,8 @@ func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAd
 }
 
 func getExprForRedirectPort(portToRedirect uint16) []expr.Any {
-	/*
-	  [ immediate reg 1 {port to Redirect} ]
-	  [ redir proto_min reg 1 ]
-	*/
-
+	// [ immediate reg 1 {port to Redirect} ]
+	//  [ redir proto_min reg 1 ]
 	re := []expr.Any{}
 	re = append(re, &expr.Immediate{
 		Register: 1,
@@ -187,38 +179,7 @@ func getExprForRedirectPort(portToRedirect uint16) []expr.Any {
 	return re
 }
 
-func getExprForSinglePort(l4proto uint8, offset uint32, port []*uint16, excl bool) ([]expr.Any, error) {
-	if l4proto == 0 {
-		return nil, fmt.Errorf("l4 protocol is 0")
-	}
-
-	re := []expr.Any{}
-	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     []byte{l4proto},
-	})
-	re = append(re, &expr.Payload{
-		DestRegister: 1,
-		Base:         expr.PayloadBaseTransportHeader,
-		Offset:       offset, // Offset for a transport protocol header
-		Len:          2,      // 2 bytes for port
-	})
-	op := expr.CmpOpEq
-	if excl {
-		op = expr.CmpOpNeq
-	}
-	re = append(re, &expr.Cmp{
-		Op:       op,
-		Register: 1,
-		Data:     binaryutil.BigEndian.PutUint16(*port[0]),
-	})
-
-	return re, nil
-}
-
-func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, excl bool, set *nftables.Set) ([]expr.Any, error) {
+func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, op Operator, set *nftables.Set) ([]expr.Any, error) {
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}
@@ -235,13 +196,31 @@ func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, excl bool,
 		Offset:       offset, // Offset for a transport protocol header
 		Len:          2,      // 2 bytes for port
 	})
-	re = append(re, &expr.Lookup{
-		SourceRegister: 1,
-		Invert:         excl,
-		SetID:          set.ID,
-		SetName:        set.Name,
-	})
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
+	if len(port) > 1 {
+		// Multi port is accomplished as a lookup
+		re = append(re, &expr.Lookup{
+			SourceRegister: 1,
+			Invert:         excl,
+			SetID:          set.ID,
+			SetName:        set.Name,
+		})
+	} else {
+		// Case for a single port list
+		cmpOp := expr.CmpOpEq
+		if excl {
+			cmpOp = expr.CmpOpNeq
+		}
+		re = append(re, &expr.Cmp{
+			Op:       cmpOp,
+			Register: 1,
+			Data:     binaryutil.BigEndian.PutUint16(*port[0]),
+		})
 
+	}
 	return re, nil
 }
 
@@ -270,7 +249,7 @@ func getExprForRedirect(port uint16, family nftables.TableFamily) []expr.Any {
 	return re
 }
 
-func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl bool) ([]expr.Any, error) {
+func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, op Operator) ([]expr.Any, error) {
 	// [ meta load l4proto => reg 1 ]
 	// [ cmp eq reg 1 0x00000006 ]
 	// [ payload load 2b @ transport header + 0 => reg 1 ]
@@ -293,7 +272,7 @@ func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl boo
 		Offset:       offset, // Offset for a transport protocol header
 		Len:          2,      // 2 bytes for port
 	})
-	if excl {
+	if op == NEQ {
 		re = append(re, &expr.Range{
 			Op:       expr.CmpOpNeq,
 			Register: 1,
@@ -316,7 +295,7 @@ func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, excl boo
 	return re, nil
 }
 
-func getExprForIPVersion(version byte, excl bool) ([]expr.Any, error) {
+func getExprForIPVersion(version byte, op Operator) ([]expr.Any, error) {
 	re := []expr.Any{}
 	re = append(re, &expr.Payload{
 		DestRegister: 1,
@@ -324,8 +303,8 @@ func getExprForIPVersion(version byte, excl bool) ([]expr.Any, error) {
 		Offset:       0, // Offset for a version of IP
 		Len:          1, // 1 byte for IP version
 	})
-	if excl {
-		// TODO
+	if op != EQ {
+		// TODO sbezverk
 		return re, nil
 	}
 	re = append(re, &expr.Bitwise{
@@ -345,7 +324,7 @@ func getExprForIPVersion(version byte, excl bool) ([]expr.Any, error) {
 	return re, nil
 }
 
-func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) ([]expr.Any, error) {
+func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, op Operator) ([]expr.Any, error) {
 	re := []expr.Any{}
 	if l3proto == nftables.TableFamilyIPv4 {
 		// IPv4
@@ -367,8 +346,8 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) (
 		})
 	}
 
-	if excl {
-		// TODO
+	if op != EQ {
+		// TODO sbezverk
 		return re, nil
 	}
 	// [ cmp eq reg 1 0x00000006 ]
@@ -381,14 +360,61 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) (
 	return re, nil
 }
 
-func getExprForMeta(meta *Meta) []expr.Any {
+func getExprForMetaMark(mark *MetaMark) []expr.Any {
 	re := []expr.Any{}
-	re = append(re, &expr.Meta{Key: expr.MetaKey(meta.Key), Register: 1})
-	re = append(re, &expr.Cmp{
-		Op:       expr.CmpOpEq,
-		Register: 1,
-		Data:     meta.Value,
-	})
+	if mark.Set {
+		// [ immediate reg 1 0x0000dead ]
+		// [ meta set mark with reg 1 ]
+		re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.NativeEndian.PutUint32(uint32(mark.Value))})
+		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: true})
+	} else {
+		// [ meta load mark => reg 1 ]
+		// [ cmp eq reg 1 0x0000dead ]
+		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: false})
+		re = append(re, &expr.Cmp{
+			Op:       expr.CmpOpEq,
+			Register: 1,
+			Data:     binaryutil.NativeEndian.PutUint32(uint32(mark.Value)),
+		})
+	}
+
+	return re
+}
+
+func getExprForMasq(masq *masquerade) []expr.Any {
+	re := []expr.Any{}
+	// Since masquerade flags and toPort are mutually exclusive, each case will generate different sequence of
+	// expressions
+	if masq.toPort[0] != nil {
+		m := &expr.Masq{ToPorts: true}
+		// Case  at least 1 toPort specified
+		//  [ immediate reg 1 0x00000004 ]
+		re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.BigEndian.PutUint32(uint32(*masq.toPort[0]))})
+		m.RegProtoMin = 1
+		m.RegProtoMax = 0
+		if masq.toPort[1] != nil {
+			// If second port is specified, then range of ports will be used.
+			// [ immediate reg 2 0x00000008 ]
+			re = append(re, &expr.Immediate{Register: 2, Data: binaryutil.BigEndian.PutUint32(uint32(*masq.toPort[1]))})
+			m.RegProtoMax = 2
+		}
+		// [ masq proto_min reg 1 proto_max reg 2 ]
+		re = append(re, m)
+	} else {
+		// Since toPort[0] is nil, checking flags
+		//  [ masq flags value ]
+		var random, fullyRandom, persistent bool
+		if masq.random != nil {
+			random = *masq.random
+		}
+		if masq.fullyRandom != nil {
+			fullyRandom = *masq.fullyRandom
+		}
+		if masq.persistent != nil {
+			persistent = *masq.persistent
+		}
+		re = append(re, &expr.Masq{Random: random, FullyRandom: fullyRandom, Persistent: persistent, ToPorts: false})
+	}
 
 	return re
 }
@@ -396,6 +422,38 @@ func getExprForMeta(meta *Meta) []expr.Any {
 func getExprForLog(log *Log) []expr.Any {
 	re := []expr.Any{}
 	re = append(re, &expr.Log{Key: log.Key, Data: log.Value})
+
+	return re
+}
+
+func getExprForConntracks(cts []*Conntrack) []expr.Any {
+	re := []expr.Any{}
+	for _, ct := range cts {
+		switch ct.Key {
+		// List of supported conntrack keys
+		case unix.NFT_CT_STATE:
+			//	[ ct load state => reg 1 ]
+			//	[ bitwise reg 1 = (reg=1 & 0x00000008 ) ^ 0x00000000 ]
+			//	[ cmp neq reg 1 0x00000000 ]
+			re = append(re, &expr.Ct{Key: unix.NFT_CT_STATE, Register: 1})
+			re = append(re, &expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            4,
+				Mask:           ct.Value,
+				Xor:            []byte{0x0, 0x0, 0x0, 0x0},
+			})
+			re = append(re, &expr.Cmp{
+				Op:       expr.CmpOpNeq,
+				Register: 1,
+				Data:     []byte{0x0, 0x0, 0x0, 0x0},
+			})
+		case unix.NFT_CT_DIRECTION:
+		case unix.NFT_CT_STATUS:
+		case unix.NFT_CT_LABELS:
+		case unix.NFT_CT_EVENTMASK:
+		}
+	}
 
 	return re
 }

@@ -31,16 +31,17 @@ type RulesInterface interface {
 // RuleFuncs defines funcations to operate with Rules
 type RuleFuncs interface {
 	Create(*Rule) (uint32, error)
-	CreateImm(*Rule) (uint32, error)
+	CreateImm(*Rule) (uint64, error)
 	Delete(uint32) error
 	DeleteImm(uint32) error
 	Insert(*Rule, int) (uint32, error)
-	InsertImm(*Rule, int) (uint32, error)
+	InsertImm(*Rule, int) (uint64, error)
+	Update(*Rule, uint64) error
 	Dump() ([]byte, error)
 	Sync() error
 	UpdateRulesHandle() error
 	GetRuleHandle(id uint32) (uint64, error)
-	GetRulesUserData() ([][]byte, error)
+	GetRulesUserData() (map[uint64][]byte, error)
 }
 
 type nfRules struct {
@@ -75,11 +76,7 @@ func (nfr *nfRules) Rules() RuleFuncs {
 	return nfr
 }
 
-func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
-	return nfr.create(rule, 0)
-}
-
-func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
+func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	r := &nftables.Rule{}
 	var err error
 	var sets []*nfSet
@@ -87,7 +84,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	e := []expr.Any{}
 	if rule.L3 != nil {
 		if e, set, err = createL3(nfr.table.Family, rule); err != nil {
-			return 0, nil
+			return nil, err
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -95,7 +92,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 
 	if rule.L4 != nil {
 		if e, set, err = createL4(nfr.table.Family, rule); err != nil {
-			return 0, nil
+			return nil, err
 		}
 		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
@@ -108,40 +105,66 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	}
 	// Check if Meta is specified appending to rule's list of expressions
 	if rule.Meta != nil {
-		r.Exprs = append(r.Exprs, getExprForMeta(rule.Meta)...)
+		switch {
+		case rule.Meta.Mark != nil:
+			r.Exprs = append(r.Exprs, getExprForMetaMark(rule.Meta.Mark)...)
+		}
 	}
 	// Check if Meta is specified appending to rule's list of expressions
 	if rule.Log != nil {
 		r.Exprs = append(r.Exprs, getExprForLog(rule.Log)...)
 	}
-	if rule.Action.redirect != nil {
-		if rule.Action.redirect.tproxy {
-			r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		} else {
-			r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
-		}
-	} else if rule.Action.verdict != nil {
-		r.Exprs = append(r.Exprs, rule.Action.verdict)
+
+	if len(rule.Conntracks) > 0 {
+		r.Exprs = append(r.Exprs, getExprForConntracks(rule.Conntracks)...)
 	}
 
+	if rule.Action != nil {
+		switch {
+		case rule.Action.redirect != nil:
+			if rule.Action.redirect.tproxy {
+				r.Exprs = append(r.Exprs, getExprForTProxyRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+			} else {
+				r.Exprs = append(r.Exprs, getExprForRedirect(rule.Action.redirect.port, nfr.table.Family)...)
+			}
+		case rule.Action.verdict != nil:
+			r.Exprs = append(r.Exprs, rule.Action.verdict)
+		case rule.Action.masq != nil:
+			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
+		}
+	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
 	rr := &nfRule{}
+	rr.rule = r
 	for _, s := range sets {
 		s.set.Table = nfr.table
 		if err := nfr.conn.AddSet(s.set, s.elements); err != nil {
-			return 0, err
+			return nil, err
 		}
 		s.set.DataLen = len(s.elements)
 		rr.sets = append(rr.sets, s)
 	}
 
-	rr.rule = r
+	return rr, nil
+}
+
+func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
+	return nfr.create(rule, 0)
+}
+
+func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
+	// Process all user specified expressions and return nfRule
+	rr, err := nfr.buildRule(rule)
+	if err != nil {
+		return 0, err
+	}
+	// Adding nfRule to the list
 	nfr.addRule(rr)
 	if position != 0 {
 		// Used by Insert call
-		r.Position = uint64(position)
+		rr.rule.Position = uint64(position)
 	}
 	// Allocating UserData struct for ruleID
 	userData := &nfUserData{
@@ -157,15 +180,15 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	buffer := new(bytes.Buffer)
 	enc := gob.NewEncoder(buffer)
 	enc.Encode(userData)
-	r.UserData = buffer.Bytes()
+	rr.rule.UserData = buffer.Bytes()
 
 	// Pushing rule to netlink library to be programmed by Flsuh()
-	nfr.conn.AddRule(r)
+	nfr.conn.AddRule(rr.rule)
 
 	return rr.id, nil
 }
 
-func (nfr *nfRules) CreateImm(rule *Rule) (uint32, error) {
+func (nfr *nfRules) CreateImm(rule *Rule) (uint64, error) {
 	id, err := nfr.Create(rule)
 	if err != nil {
 		return 0, err
@@ -183,7 +206,7 @@ func (nfr *nfRules) CreateImm(rule *Rule) (uint32, error) {
 		return 0, err
 	}
 
-	return id, nil
+	return handle, nil
 }
 
 func (nfr *nfRules) Delete(id uint32) error {
@@ -218,7 +241,7 @@ func (nfr *nfRules) Insert(rule *Rule, position int) (uint32, error) {
 	return nfr.create(rule, position)
 }
 
-func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint32, error) {
+func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint64, error) {
 	id, err := nfr.Insert(rule, position)
 	if err != nil {
 		return 0, err
@@ -236,7 +259,44 @@ func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint32, error) {
 		return 0, err
 	}
 
-	return id, nil
+	return handle, nil
+}
+
+func (nfr *nfRules) Update(rule *Rule, handle uint64) error {
+	nfrule, err := getRuleByHandle(nfr.rules, handle)
+	if err != nil {
+		return err
+	}
+	r, err := nfr.buildRule(rule)
+	if err != nil {
+		return err
+	}
+	r.rule.Handle = handle
+	// If higher level app passes some arbitrary metadata for the rule, store it to nfUserData appData
+	if rule.UserData != nil {
+		userData := &nfUserData{}
+		userData.AppData = make([]byte, len(rule.UserData))
+		copy(userData.AppData, rule.UserData)
+		// Encoding nfUserData into []byte to send as nftables.UserData
+		buffer := new(bytes.Buffer)
+		enc := gob.NewEncoder(buffer)
+		enc.Encode(userData)
+		r.rule.UserData = buffer.Bytes()
+	}
+	// Updating rule expressions and sets but preserving pointers to prev and next
+	nfrule.Lock()
+	nfrule.rule = r.rule
+	nfrule.sets = r.sets
+	nfrule.Unlock()
+
+	// Pushing rule to netlink library to be programmed by Flush()
+	nfr.conn.AddRule(nfrule.rule)
+	// Programming Update rule
+	if err := nfr.conn.Flush(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (nfr *nfRules) Dump() ([]byte, error) {
@@ -366,12 +426,12 @@ func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
 	return 0, fmt.Errorf("rule with id %d is not found", id)
 }
 
-func (nfr *nfRules) GetRulesUserData() ([][]byte, error) {
+func (nfr *nfRules) GetRulesUserData() (map[uint64][]byte, error) {
 	rules, err := nfr.conn.GetRule(nfr.table, nfr.chain)
 	if err != nil {
 		return nil, err
 	}
-	ud := [][]byte{}
+	ud := make(map[uint64][]byte, 0)
 	for _, rule := range rules {
 		if rule.UserData != nil {
 			userData := &nfUserData{}
@@ -380,8 +440,10 @@ func (nfr *nfRules) GetRulesUserData() ([][]byte, error) {
 			if err := dec.Decode(userData); err != nil {
 				return nil, err
 			}
+			// If rule has some application specific data, return it in the map with rule's
+			// handle as a key
 			if userData.AppData != nil {
-				ud = append(ud, userData.AppData)
+				ud[rule.Handle] = userData.AppData
 			}
 		}
 	}
@@ -428,10 +490,20 @@ func (ip *IPAddr) Validate() error {
 	return nil
 }
 
+// Operator defines type used for relational operations in the rule
+type Operator byte
+
+// List of supported relational operations, starts with 0. if not specified, default 0 inidcates eq operator
+const (
+	EQ Operator = iota
+	NEQ
+)
+
 // IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddrSpec struct {
 	List  []*IPAddr
 	Range [2]*IPAddr
+	RelOp Operator
 }
 
 // NewIPAddr is a helper function which converts ip address into IPAddr format
@@ -504,6 +576,7 @@ type L3Rule struct {
 	Dst      *IPAddrSpec
 	Version  *byte
 	Protocol *uint32
+	RelOp    Operator
 }
 
 // L3Protocol is a helper function to convert a value of L3 protocol
@@ -537,6 +610,7 @@ func (l3 *L3Rule) Validate() error {
 type Port struct {
 	List  []*uint16
 	Range [2]*uint16
+	RelOp Operator
 }
 
 // SetPortList is a helper function which transforms a slice of int into
@@ -578,6 +652,7 @@ type L4Rule struct {
 	L4Proto uint8
 	Src     *Port
 	Dst     *Port
+	RelOp   Operator
 }
 
 // Validate checks parameters of L4Rule struct
@@ -606,16 +681,34 @@ type redirect struct {
 	tproxy bool
 }
 
+// masquarade defines a struct describing Masquerade action, flags cannot be combined with
+// toPort
+type masquerade struct {
+	random      *bool
+	fullyRandom *bool
+	persistent  *bool
+	toPort      [2]*uint16
+}
+
+// MetaMark defines Mark keyword of Meta key
+// Mark can be used either to Set or Match a mark.
+// If Set is true, then the Value will be used to mark a packet,
+// and if Set is false, then the Value will be used to match packet's mark against it.
+type MetaMark struct {
+	Set   bool
+	Value int32
+}
+
 // Meta defines parameters used to build nft meta expression
 type Meta struct {
-	Key   uint32
-	Value []byte
+	Mark *MetaMark
 }
 
 // RuleAction defines what action needs to be executed on the rule match
 type RuleAction struct {
 	verdict  *expr.Verdict
 	redirect *redirect
+	masq     *masquerade
 }
 
 // SetVerdict builds RuleAction struct for Verdict based actions
@@ -633,6 +726,39 @@ func SetRedirect(port int, tproxy bool) (*RuleAction, error) {
 	if err := ra.setRedirect(port, tproxy); err != nil {
 		return nil, err
 	}
+	return ra, nil
+}
+
+// SetMasq builds RuleAction struct for Masquerade action
+func SetMasq(random, fullyRandom, persistent bool) (*RuleAction, error) {
+	ra := &RuleAction{}
+	ra.masq = &masquerade{}
+	ra.masq.random = &random
+	ra.masq.fullyRandom = &fullyRandom
+	ra.masq.persistent = &persistent
+
+	return ra, nil
+}
+
+// SetMasqToPort builds RuleAction struct for Masquerade action
+func SetMasqToPort(port ...int) (*RuleAction, error) {
+	ra := &RuleAction{}
+	ra.masq = &masquerade{}
+	if len(port) == 0 {
+		return nil, fmt.Errorf("no port provided")
+	}
+	if len(port) > 2 {
+		return nil, fmt.Errorf("more than maximum of 2 ports provided")
+	}
+	ports := [2]*uint16{}
+	p := uint16(port[0])
+	ports[0] = &p
+	if len(port) == 2 {
+		p := uint16(port[1])
+		ports[1] = &p
+	}
+	ra.masq.toPort = ports
+
 	return ra, nil
 }
 
@@ -700,15 +826,22 @@ func SetLog(key int, value []byte) (*Log, error) {
 	return &Log{Key: uint32(key), Value: value}, nil
 }
 
+// Conntrack defines a key and  value for Ccnnection tracking
+type Conntrack struct {
+	Key   uint32
+	Value []byte
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
-	L3       *L3Rule
-	L4       *L4Rule
-	Meta     *Meta
-	Log      *Log
-	Exclude  bool
-	Action   *RuleAction
-	UserData []byte
+	L3         *L3Rule
+	L4         *L4Rule
+	Conntracks []*Conntrack
+	Meta       *Meta
+	Log        *Log
+	RelOp      Operator
+	Action     *RuleAction
+	UserData   []byte
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found

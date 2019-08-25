@@ -17,21 +17,21 @@ func createL3(l3proto nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, e
 
 	// Processing non-nil keys defined in L3 portion of a rule
 	if rule.L3.Version != nil {
-		if e, _, err = processVersion(*rule.L3.Version, rule.Exclude); err != nil {
+		if e, _, err = processVersion(*rule.L3.Version, rule.L3.RelOp); err != nil {
 			return nil, nil, err
 		}
 		re = append(re, e...)
 	}
 
 	if rule.L3.Protocol != nil {
-		if e, _, err = processProtocol(l3proto, *rule.L3.Protocol, rule.Exclude); err != nil {
+		if e, _, err = processProtocol(l3proto, *rule.L3.Protocol, rule.L3.RelOp); err != nil {
 			return nil, nil, err
 		}
 		re = append(re, e...)
 	}
 
 	if rule.L3.Src != nil {
-		if e, set, err = processIPAddr(l3proto, rule.L3.Src, true, rule.Exclude); err != nil {
+		if e, set, err = processIPAddr(l3proto, rule.L3.Src, true, rule.L3.Src.RelOp); err != nil {
 			return nil, nil, err
 		}
 		if set != nil {
@@ -41,7 +41,7 @@ func createL3(l3proto nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, e
 	}
 
 	if rule.L3.Dst != nil {
-		if e, set, err = processIPAddr(l3proto, rule.L3.Dst, false, rule.Exclude); err != nil {
+		if e, set, err = processIPAddr(l3proto, rule.L3.Dst, false, rule.L3.Dst.RelOp); err != nil {
 			return nil, nil, err
 		}
 		if set != nil {
@@ -53,8 +53,16 @@ func createL3(l3proto nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, e
 }
 
 func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr,
-	excl bool) ([]expr.Any, *nfSet, error) {
+	op Operator) ([]expr.Any, *nfSet, error) {
 
+	if len(list) == 1 {
+		// Special case when a single IP is provided in the list
+		re, err := getExprForSingleIP(l3proto, offset, list[0], op)
+		if err != nil {
+			return nil, nil, err
+		}
+		return re, nil, nil
+	}
 	nfset := &nfSet{}
 	set := &nftables.Set{
 		Anonymous: false,
@@ -72,7 +80,7 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	}
 	nfset.set = set
 	nfset.elements = se
-	re, err := getExprForListIP(l3proto, set, offset, excl)
+	re, err := getExprForListIP(l3proto, set, offset, op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -80,8 +88,8 @@ func processAddrList(l3proto nftables.TableFamily, offset uint32, list []*IPAddr
 	return re, nfset, nil
 }
 
-func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, excl bool) ([]expr.Any, *nfSet, error) {
-	re, err := getExprForRangeIP(l3proto, offset, rng, excl)
+func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, op Operator) ([]expr.Any, *nfSet, error) {
+	re, err := getExprForRangeIP(l3proto, offset, rng, op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,8 +97,8 @@ func processAddrRange(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAdd
 	return re, nil, nil
 }
 
-func processVersion(version byte, excl bool) ([]expr.Any, *nfSet, error) {
-	re, err := getExprForIPVersion(version, excl)
+func processVersion(version byte, op Operator) ([]expr.Any, *nfSet, error) {
+	re, err := getExprForIPVersion(version, op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -98,8 +106,8 @@ func processVersion(version byte, excl bool) ([]expr.Any, *nfSet, error) {
 	return re, nil, nil
 }
 
-func processProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) ([]expr.Any, *nfSet, error) {
-	re, err := getExprForProtocol(l3proto, proto, excl)
+func processProtocol(l3proto nftables.TableFamily, proto uint32, op Operator) ([]expr.Any, *nfSet, error) {
+	re, err := getExprForProtocol(l3proto, proto, op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -107,7 +115,7 @@ func processProtocol(l3proto nftables.TableFamily, proto uint32, excl bool) ([]e
 	return re, nil, nil
 }
 
-func processIPAddr(l3proto nftables.TableFamily, addrs *IPAddrSpec, src bool, exclude bool) ([]expr.Any, []*nfSet, error) {
+func processIPAddr(l3proto nftables.TableFamily, addrs *IPAddrSpec, src bool, op Operator) ([]expr.Any, []*nfSet, error) {
 	var addrOffset uint32
 	var keyType nftables.SetDatatype
 	var set *nfSet
@@ -133,7 +141,7 @@ func processIPAddr(l3proto nftables.TableFamily, addrs *IPAddrSpec, src bool, ex
 	}
 	// If list is not nil processing elements
 	if addrs.List != nil {
-		if e, set, err = processAddrList(l3proto, addrOffset, addrs.List, exclude); err != nil {
+		if e, set, err = processAddrList(l3proto, addrOffset, addrs.List, op); err != nil {
 			return nil, nil, err
 		}
 		if set != nil {
@@ -144,7 +152,7 @@ func processIPAddr(l3proto nftables.TableFamily, addrs *IPAddrSpec, src bool, ex
 	}
 	// if both elements of the range are specified, processing elements
 	if addrs.Range[0] != nil && addrs.Range[1] != nil {
-		if e, set, err = processAddrRange(l3proto, addrOffset, addrs.Range, exclude); err != nil {
+		if e, set, err = processAddrRange(l3proto, addrOffset, addrs.Range, op); err != nil {
 			return nil, nil, err
 		}
 		if set != nil {
