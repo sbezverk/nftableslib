@@ -24,6 +24,14 @@ func setActionVerdict(t *testing.T, key int, chain ...string) *nftableslib.RuleA
 	return ra
 }
 
+func setActionReject(t *testing.T, rejectType, rejectCode int) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetReject(rejectType, rejectCode)
+	if err != nil {
+		t.Fatalf("failed to SetVerdict with error: %+v", err)
+	}
+	return ra
+}
+
 func setIPAddr(t *testing.T, addr string) *nftableslib.IPAddr {
 	a, err := nftableslib.NewIPAddr(addr)
 	if err != nil {
@@ -150,7 +158,7 @@ func TestMock(t *testing.T) {
 						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0")},
 					},
 				},
-				Action: setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
+				Action: setActionReject(t, nftableslib.NFT_ICMP_REJECT, unix.NFT_REJECT_ICMPX_HOST_UNREACH),
 			},
 			success: true,
 		},

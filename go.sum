@@ -86,6 +86,8 @@ github.com/google/nftables v0.0.0-20190815062530-0b3d8b56f6af h1:oIcE80y8qkkqHVw
 github.com/google/nftables v0.0.0-20190815062530-0b3d8b56f6af/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
 github.com/google/nftables v0.0.0-20190825214347-ec0390b0586a h1:1TwQB6UE1kJpJ7ak8gBPoDkTYxU63jcks97l9O8God8=
 github.com/google/nftables v0.0.0-20190825214347-ec0390b0586a/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
+github.com/google/nftables v0.0.0-20190826075752-d514535a0c94 h1:7Vg7auEQ5rKbar8R4na47n1x4cdcHVZqWsLSkezpavE=
+github.com/google/nftables v0.0.0-20190826075752-d514535a0c94/go.mod h1:DfTD7lq9Gq5pLrgCmJDbGtrcWF/h7i5XWgEC/6bQu0s=
 github.com/google/pprof v0.0.0-20181206194817-3ea8567a2e57/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/pprof v0.0.0-20190515194954-54271f7e092f/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=
@@ -338,6 +340,7 @@ golang.org/x/tools v0.0.0-20190809145639-6d4652c779c4/go.mod h1:b+2E5dAYhXwXZwtn
 golang.org/x/tools v0.0.0-20190813142322-97f12d73768f/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190814235402-ea4142463bf3/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.0.0-20190825031127-d72b05d2b1b6/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
+golang.org/x/tools v0.0.0-20190826060629-95c3470cfb70/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 google.golang.org/api v0.4.0/go.mod h1:8k5glujaEP+g9n7WNsDg8QP6cUVNI86fCNMcbazEtwE=
 google.golang.org/api v0.7.0/go.mod h1:WtwebWUNSVBH/HAw79HIFXZNqEvBhG+Ra+ax0hx3E3M=
