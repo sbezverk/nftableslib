@@ -82,6 +82,10 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	var sets []*nfSet
 	var set []*nfSet
 	e := []expr.Any{}
+	if rule.Fib != nil {
+		e := getExprForFib(rule.Fib)
+		r.Exprs = append(r.Exprs, e...)
+	}
 	if rule.L3 != nil {
 		if e, set, err = createL3(nfr.table.Family, rule); err != nil {
 			return nil, err
@@ -841,6 +845,35 @@ type Log struct {
 	Value []byte
 }
 
+// Fib defines nftables Fib expression. Results and Flags can have multiple selections.
+// Data is a slice of bytes, its content depends up on Result and Flags combination.
+// Example: if fib expression specifies a particular address type, then Data would carry one of
+// constants defined in golang.org/x/sys/unix
+// RTN_UNICAST             = 0x1
+// RTN_LOCAL               = 0x2
+// RTN_BROADCAST           = 0x3
+// RTN_ANYCAST             = 0x4
+// RTN_MULTICAST           = 0x5
+// RTN_BLACKHOLE           = 0x6
+// RTN_UNREACHABLE         = 0x7
+// RTN_PROHIBIT            = 0x8
+// RTN_THROW               = 0x9
+// RTN_NAT                 = 0xa
+// RTN_XRESOLVE            = 0xb
+type Fib struct {
+	ResultOIF      bool
+	ResultOIFNAME  bool
+	ResultADDRTYPE bool
+	FlagSADDR      bool
+	FlagDADDR      bool
+	FlagMARK       bool
+	FlagIIF        bool
+	FlagOIF        bool
+	FlagPRESENT    bool
+	RelOp          Operator
+	Data           []byte
+}
+
 // SetLog is a helper function returning Log struct with validated values
 func SetLog(key int, value []byte) (*Log, error) {
 	switch key {
@@ -863,6 +896,7 @@ type Conntrack struct {
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
+	Fib        *Fib
 	L3         *L3Rule
 	L4         *L4Rule
 	Conntracks []*Conntrack

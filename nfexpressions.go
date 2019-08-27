@@ -433,6 +433,41 @@ func getExprForReject(r *reject) []expr.Any {
 	return re
 }
 
+func getExprForFib(f *Fib) []expr.Any {
+	// [ fib daddr type => reg 1 ]
+	// [ cmp eq reg 1 0x00000002 ]
+	re := []expr.Any{}
+	re = append(re, &expr.Fib{Register: 1,
+		ResultOIF:      f.ResultOIF,
+		ResultOIFNAME:  f.ResultOIFNAME,
+		ResultADDRTYPE: f.ResultADDRTYPE,
+		FlagSADDR:      f.FlagSADDR,
+		FlagDADDR:      f.FlagDADDR,
+		FlagMARK:       f.FlagMARK,
+		FlagIIF:        f.FlagIIF,
+		FlagOIF:        f.FlagOIF,
+		FlagPRESENT:    f.FlagPRESENT,
+	})
+
+	op := expr.CmpOpEq
+	if f.RelOp == NEQ {
+		op = expr.CmpOpNeq
+	}
+	l := len(f.Data) / 4
+	if len(f.Data)%4 != 0 {
+		l++
+	}
+	data := make([]byte, l*4)
+	copy(data, f.Data)
+	re = append(re, &expr.Cmp{
+		Op:       op,
+		Register: 1,
+		Data:     data,
+	})
+
+	return re
+}
+
 func getExprForConntracks(cts []*Conntrack) []expr.Any {
 	re := []expr.Any{}
 	for _, ct := range cts {
