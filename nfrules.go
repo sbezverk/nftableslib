@@ -112,6 +112,8 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		switch {
 		case rule.Meta.Mark != nil:
 			r.Exprs = append(r.Exprs, getExprForMetaMark(rule.Meta.Mark)...)
+		case len(rule.Meta.Expr) != 0:
+			r.Exprs = append(r.Exprs, getExprForMetaExpr(rule.Meta.Expr)...)
 		}
 	}
 	// Check if Meta is specified appending to rule's list of expressions
@@ -149,7 +151,7 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		if err := nfr.conn.AddSet(s.set, s.elements); err != nil {
 			return nil, err
 		}
-		s.set.DataLen = len(s.elements)
+		//		s.set.DataLen = len(s.elements)
 		rr.sets = append(rr.sets, s)
 	}
 
@@ -341,7 +343,7 @@ func (nfr *nfRules) Sync() error {
 			if err != nil {
 				return err
 			}
-			set.DataLen = len(elements)
+			// set.DataLen = len(elements)
 			sets = append(sets, &nfSet{set: set, elements: elements})
 
 		}
@@ -711,9 +713,18 @@ type MetaMark struct {
 	Value int32
 }
 
+// MetaExpr allows specifing Meta expressions by meta key and its value,
+// example Key: unix.NFT_META_SKGID and Value: 1024
+type MetaExpr struct {
+	Key   uint32
+	Value []byte
+	RelOp Operator
+}
+
 // Meta defines parameters used to build nft meta expression
 type Meta struct {
 	Mark *MetaMark
+	Expr []MetaExpr
 }
 
 // RuleAction defines what action needs to be executed on the rule match
