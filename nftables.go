@@ -16,6 +16,8 @@ type TablesInterface interface {
 // TableFuncs defines second level interface operating with nf tables
 type TableFuncs interface {
 	Table(name string, familyType nftables.TableFamily) (ChainsInterface, error)
+	TableChains(name string, familyType nftables.TableFamily) (ChainsInterface, error)
+	TableSets(name string, familyType nftables.TableFamily) (SetsInterface, error)
 	Create(name string, familyType nftables.TableFamily) error
 	Delete(name string, familyType nftables.TableFamily) error
 	CreateImm(name string, familyType nftables.TableFamily) error
@@ -37,6 +39,7 @@ type nfTables struct {
 type nfTable struct {
 	table *nftables.Table
 	ChainsInterface
+	SetsInterface
 }
 
 // InitConn initializes netlink connection of the nftables family
@@ -77,6 +80,32 @@ func (nft *nfTables) Table(name string, familyType nftables.TableFamily) (Chains
 	return nil, fmt.Errorf("table %s of type %v does not exist", name, familyType)
 }
 
+// TableChains returns Chains Interface for a specific table
+func (nft *nfTables) TableChains(name string, familyType nftables.TableFamily) (ChainsInterface, error) {
+	nft.Lock()
+	defer nft.Unlock()
+	// Check if nf table with the same family type and name  already exists
+	if t, ok := nft.tables[familyType][name]; ok {
+		return t.ChainsInterface, nil
+
+	}
+
+	return nil, fmt.Errorf("table %s of type %v does not exist", name, familyType)
+}
+
+// TableChains returns Chains Interface for a specific table
+func (nft *nfTables) TableSets(name string, familyType nftables.TableFamily) (SetsInterface, error) {
+	nft.Lock()
+	defer nft.Unlock()
+	// Check if nf table with the same family type and name  already exists
+	if t, ok := nft.tables[familyType][name]; ok {
+		return t.SetsInterface, nil
+
+	}
+
+	return nil, fmt.Errorf("table %s of type %v does not exist", name, familyType)
+}
+
 // Create appends a table into NF tables list
 func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error {
 	t, err := nft.create(name, familyType)
@@ -104,6 +133,7 @@ func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTa
 	nft.tables[familyType][name] = &nfTable{
 		table:           t,
 		ChainsInterface: newChains(nft.conn, t),
+		SetsInterface:   newSets(nft.conn, t),
 	}
 
 	return nft.tables[familyType][name], nil
