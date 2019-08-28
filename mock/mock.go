@@ -62,16 +62,6 @@ func (m *Mock) GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, erro
 	return nil, nil
 }
 
-// GetSetElements not implemented yet
-func (m *Mock) GetSetElements(*nftables.Set) ([]nftables.SetElement, error) {
-	return nil, nil
-}
-
-// GetSets not implemented yet
-func (m *Mock) GetSets(*nftables.Table) ([]*nftables.Set, error) {
-	return nil, nil
-}
-
 // ListChains not implemented yet
 func (m *Mock) ListChains() ([]*nftables.Chain, error) {
 	return nil, nil
@@ -80,6 +70,34 @@ func (m *Mock) ListChains() ([]*nftables.Chain, error) {
 // ListTables not implemented yet
 func (m *Mock) ListTables() ([]*nftables.Table, error) {
 	return nil, nil
+}
+
+func (m *Mock) CreateSet(attrs *nftableslib.SetAttributes, elements []nftables.SetElement) (*nftables.Set, error) {
+	return nil, nil
+}
+
+func (m *Mock) DelSet(set *nftables.Set) {
+	return
+}
+
+func (m *Mock) GetSets(t *nftables.Table) ([]*nftables.Set, error) {
+	return nil, nil
+}
+
+func (m *Mock) GetSetElements(set *nftables.Set) ([]nftables.SetElement, error) {
+	return nil, nil
+}
+
+func (m *Mock) SetAddElements(set *nftables.Set, elements []nftables.SetElement) error {
+	return nil
+}
+
+func (m *Mock) SetDelElements(set *nftables.Set, elements []nftables.SetElement) error {
+	return nil
+}
+
+func (m *Mock) SetDeleteElements(set *nftables.Set, elements []nftables.SetElement) error {
+	return nil
 }
 
 // InitMockConn initializes mock connection of the nftables family
