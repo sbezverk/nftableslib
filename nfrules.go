@@ -614,11 +614,18 @@ func (l3 *L3Rule) Validate() error {
 	return nil
 }
 
+// SetRef defines a reference to a Set/Map/Vmap
+type SetRef struct {
+	Name string
+	ID   uint32
+}
+
 // Port lists possible flavours of specifying port information
 type Port struct {
-	List  []*uint16
-	Range [2]*uint16
-	RelOp Operator
+	List   []*uint16
+	Range  [2]*uint16
+	RelOp  Operator
+	SetRef *SetRef
 }
 
 // SetPortList is a helper function which transforms a slice of int into

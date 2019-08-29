@@ -10,56 +10,69 @@ import (
 )
 
 func createL4(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, error) {
-	var offset uint32
 	re := []expr.Any{}
-	e := []expr.Any{}
 	sets := make([]*nfSet, 0)
-	var set *nfSet
-	var err error
 
 	l4 := rule.L4
 	if l4.Src != nil {
-		offset = 0
-		if len(l4.Src.List) != 0 {
-			e, set, err = processPortList(l4.L4Proto, offset, l4.Src.List, l4.Src.RelOp)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-		if l4.Src.Range[0] != nil && l4.Src.Range[1] != nil {
-			e, set, err = processPortRange(l4.L4Proto, offset, l4.Src.Range, l4.Src.RelOp)
-			if err != nil {
-				return nil, nil, err
-			}
+		// 0 bytes is offset for Source ports in L4 header
+		e, set, err := processPort(l4.L4Proto, 0, l4.Src)
+		if err != nil {
+			return nil, nil, err
 		}
 		if set != nil {
-			set.set.KeyType = nftables.TypeInetService
 			sets = append(sets, set)
 		}
 		re = append(re, e...)
 	}
 	if l4.Dst != nil {
-		offset = 2
-		if len(l4.Dst.List) != 0 {
-			e, set, err = processPortList(l4.L4Proto, offset, l4.Dst.List, l4.Dst.RelOp)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-		if l4.Dst.Range[0] != nil && l4.Dst.Range[1] != nil {
-			e, set, err = processPortRange(l4.L4Proto, offset, l4.Dst.Range, l4.Dst.RelOp)
-			if err != nil {
-				return nil, nil, err
-			}
+		// 2 bytes is offset for Source ports in L4 header
+		e, set, err := processPort(l4.L4Proto, 2, l4.Dst)
+		if err != nil {
+			return nil, nil, err
 		}
 		if set != nil {
-			set.set.KeyType = nftables.TypeInetService
 			sets = append(sets, set)
 		}
 		re = append(re, e...)
 	}
 
 	return re, sets, nil
+}
+
+// processPort process one of the possible port sources and returns required expressions,
+// dynamically generated set or error.
+func processPort(proto uint8, offset uint32, port *Port) ([]expr.Any, *nfSet, error) {
+	re := []expr.Any{}
+	e := []expr.Any{}
+	var set *nfSet
+	var err error
+
+	// Port has three possible sources: List, Range or a reference to already existing Set/Map or VMap
+	switch {
+	case len(port.List) != 0:
+		e, set, err = processPortList(proto, offset, port.List, port.RelOp)
+		if err != nil {
+			return nil, nil, err
+		}
+	case port.Range[0] != nil && port.Range[1] != nil:
+		e, set, err = processPortRange(proto, offset, port.Range, port.RelOp)
+		if err != nil {
+			return nil, nil, err
+		}
+	case port.SetRef != nil:
+		e, err = getExprForPortSet(proto, offset, port.SetRef, port.RelOp)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if set != nil {
+		set.set.KeyType = nftables.TypeInetService
+	}
+	re = append(re, e...)
+
+	return re, set, nil
 }
 
 func processPortList(l4proto uint8, offset uint32, port []*uint16, op Operator) ([]expr.Any, *nfSet, error) {

@@ -517,6 +517,40 @@ func getExprForConntracks(cts []*Conntrack) []expr.Any {
 	return re
 }
 
+func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	if l4proto == 0 {
+		return nil, fmt.Errorf("l4 protocol is 0")
+	}
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     []byte{l4proto},
+	})
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       offset, // Offset for a transport protocol header
+		Len:          2,      // 2 bytes for port
+	})
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
+
+	re = append(re, &expr.Lookup{
+		SourceRegister: 1,
+		DestRegister:   0,
+		IsDestRegSet:   true,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	})
+
+	return re, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8
