@@ -652,11 +652,23 @@ func SetPortRange(ports [2]int) [2]*uint16 {
 
 // Validate check parameters of Port struct
 func (p *Port) Validate() error {
-	if len(p.List) != 0 && (p.Range[0] != nil || p.Range[1] != nil) {
-		return fmt.Errorf("either List or Range but not both can be specified")
+	set := 0
+	switch {
+	case len(p.List) != 0:
+		set++
+	case p.Range[0] != nil || p.Range[1] != nil:
+		if p.Range[0] == nil || p.Range[1] == nil {
+			return fmt.Errorf("port range requires both ports of the range to be non nil")
+		}
+		set++
+	case p.SetRef != nil:
+		set++
 	}
-	if len(p.List) == 0 && (p.Range[0] == nil || p.Range[1] == nil) {
-		return fmt.Errorf("neither List nor Range is specified")
+	if set > 1 {
+		return fmt.Errorf("either List or Range or SetRef but not the combination of them can be specified")
+	}
+	if set == 0 {
+		return fmt.Errorf("neither List nor Range nor SetRef is specified")
 	}
 
 	return nil
