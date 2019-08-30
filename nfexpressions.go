@@ -539,14 +539,17 @@ func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) (
 		excl = true
 	}
 
-	re = append(re, &expr.Lookup{
+	e := &expr.Lookup{
 		SourceRegister: 1,
-		DestRegister:   0,
-		IsDestRegSet:   true,
 		Invert:         excl,
 		SetID:          set.ID,
 		SetName:        set.Name,
-	})
+	}
+	if set.IsMap {
+		e.IsDestRegSet = true
+		e.DestRegister = 0
+	}
+	re = append(re, e)
 
 	return re, nil
 }

@@ -617,8 +617,9 @@ func (l3 *L3Rule) Validate() error {
 
 // SetRef defines a reference to a Set/Map/Vmap
 type SetRef struct {
-	Name string
-	ID   uint32
+	Name  string
+	ID    uint32
+	IsMap bool
 }
 
 // Port lists possible flavours of specifying port information
