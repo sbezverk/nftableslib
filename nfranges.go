@@ -7,47 +7,50 @@ import (
 	"github.com/google/nftables"
 )
 
-type ByIP struct {
+type byIP struct {
 	byIP []*IPAddr
 }
 
-func (a *ByIP) Len() int {
+func (a *byIP) Len() int {
 	return len(a.byIP)
 }
 
-func (a *ByIP) Swap(i, j int) {
+func (a *byIP) Swap(i, j int) {
 	a.byIP[i], a.byIP[j] = a.byIP[j], a.byIP[i]
 }
 
-func (a *ByIP) Less(i, j int) bool {
+func (a *byIP) Less(i, j int) bool {
 	a1 := a.byIP[i].IPAddr.IP
 	a2 := a.byIP[j].IPAddr.IP
 	for i := 0; i < len(a1); i++ {
 		if a1[i] < a2[i] {
 			return true
-		} else {
+		}
+		if a1[i] > a2[i] {
 			return false
 		}
 	}
 	return false
 }
 
-type ByMask struct {
+type byMask struct {
 	byMask []*IPAddr
 }
 
-func (m *ByMask) Len() int {
+func (m *byMask) Len() int {
 	return len(m.byMask)
 }
 
-func (m *ByMask) Swap(i, j int) {
+func (m *byMask) Swap(i, j int) {
 	m.byMask[i], m.byMask[j] = m.byMask[j], m.byMask[i]
 }
 
-func (m *ByMask) Less(i, j int) bool {
+func (m *byMask) Less(i, j int) bool {
 	return *m.byMask[i].Mask < *m.byMask[j].Mask
 }
 
+// getNetworks goes through the list of IPAddr and group IP Addresses of the same network in the same slice
+// result is a 2 dimentional slice of discovered network and with addresses belonging to a particular network.
 func getNetworks(list []*IPAddr) [][]*IPAddr {
 	result := make([][]*IPAddr, 0)
 	for i := 0; i < len(list); i++ {
@@ -70,15 +73,17 @@ func getNetworks(list []*IPAddr) [][]*IPAddr {
 	return result
 }
 
+// buildElementRanges build a set of elements to cover ranges of IP addresses
+// defined in the list
 func buildElementRanges(list []*IPAddr) []nftables.SetElement {
-	a := ByIP{
+	a := byIP{
 		byIP: list,
 	}
 	sort.Sort(&a)
 	networks := getNetworks(a.byIP)
 	fl := make([]*IPAddr, 0)
 	for _, nets := range networks {
-		m := ByMask{
+		m := byMask{
 			byMask: nets,
 		}
 		sort.Sort(&m)

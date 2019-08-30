@@ -139,28 +139,27 @@ func processIPAddr(l3proto nftables.TableFamily, addrs *IPAddrSpec, src bool, op
 		}
 		keyType = nftables.TypeIP6Addr
 	}
-	// If list is not nil processing elements
-	if addrs.List != nil {
+	// There are three sources for addresses; List, Range and Set/Map/Vmap
+	switch {
+	case addrs.List != nil:
 		if e, set, err = processAddrList(l3proto, addrOffset, addrs.List, op); err != nil {
 			return nil, nil, err
 		}
-		if set != nil {
-			set.set.KeyType = keyType
-			sets = append(sets, set)
-		}
-		re = append(re, e...)
-	}
-	// if both elements of the range are specified, processing elements
-	if addrs.Range[0] != nil && addrs.Range[1] != nil {
+	case addrs.Range[0] != nil && addrs.Range[1] != nil:
 		if e, set, err = processAddrRange(l3proto, addrOffset, addrs.Range, op); err != nil {
 			return nil, nil, err
 		}
-		if set != nil {
-			set.set.KeyType = keyType
-			sets = append(sets, set)
+	case addrs.SetRef != nil:
+		if e, err = getExprForAddrSet(l3proto, addrOffset, addrs.SetRef, op); err != nil {
+			return nil, nil, err
 		}
-		re = append(re, e...)
 	}
+
+	if set != nil {
+		set.set.KeyType = keyType
+		sets = append(sets, set)
+	}
+	re = append(re, e...)
 
 	return re, sets, nil
 }

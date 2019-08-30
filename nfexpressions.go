@@ -551,6 +551,36 @@ func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) (
 	return re, nil
 }
 
+// getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
+func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	addrLen := 4
+	if l3proto == nftables.TableFamilyIPv6 {
+		addrLen = 16
+	}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       offset,          // Offset ip address in network header
+		Len:          uint32(addrLen), // length bytes for ip address
+	})
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
+	re = append(re, &expr.Lookup{
+		SourceRegister: 1,
+		DestRegister:   0,
+		IsDestRegSet:   true,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	})
+
+	return re, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8

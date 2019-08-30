@@ -509,9 +509,10 @@ const (
 
 // IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddrSpec struct {
-	List  []*IPAddr
-	Range [2]*IPAddr
-	RelOp Operator
+	List   []*IPAddr
+	Range  [2]*IPAddr
+	SetRef *SetRef
+	RelOp  Operator
 }
 
 // NewIPAddr is a helper function which converts ip address into IPAddr format
