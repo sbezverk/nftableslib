@@ -572,14 +572,17 @@ func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef,
 	if op == NEQ {
 		excl = true
 	}
-	re = append(re, &expr.Lookup{
+	e := &expr.Lookup{
 		SourceRegister: 1,
-		DestRegister:   0,
-		IsDestRegSet:   true,
 		Invert:         excl,
 		SetID:          set.ID,
 		SetName:        set.Name,
-	})
+	}
+	if set.IsMap {
+		e.DestRegister = 0
+		e.IsDestRegSet = true
+	}
+	re = append(re, e)
 
 	return re, nil
 }

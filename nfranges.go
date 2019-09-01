@@ -101,11 +101,11 @@ func buildElementRanges(list []*IPAddr) []nftables.SetElement {
 func buildElements(list []*IPAddr) []nftables.SetElement {
 	se := make([]nftables.SetElement, 0)
 
-	if !list[0].IsIPv6() {
-		se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
-	} else {
-		se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
-	}
+	//	if !list[0].IsIPv6() {
+	//		se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
+	//	} else {
+	//		se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
+	//	}
 	for i := 0; i < len(list); i++ {
 		se = append(se, nftables.SetElement{Key: list[i].IPAddr.IP})
 		se = append(se, nftables.SetElement{Key: computeGapRange(list[i]), IntervalEnd: true})

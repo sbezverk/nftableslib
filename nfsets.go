@@ -1,9 +1,9 @@
 package nftableslib
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
+	"net"
 	"sync"
 
 	"github.com/google/nftables"
@@ -20,6 +20,10 @@ type SetAttributes struct {
 	DataType nftables.SetDatatype
 }
 
+// IPAddrElement defines key:value of the element of the type nftables.TypeIPAddr
+// if IPAddrElement is element of a basic set, then only Addr will be specified,
+// if it is element of a map then either Port or AddrIP and if it is element of a vmap, then
+// Verdict.
 type IPAddrElement struct {
 	Addr    string
 	Port    *uint16
@@ -35,11 +39,11 @@ type SetsInterface interface {
 // SetFuncs defines funcations to operate with nftables Sets
 type SetFuncs interface {
 	CreateSet(*SetAttributes, []nftables.SetElement) (*nftables.Set, error)
-	DelSet(*nftables.Set) error
+	DelSet(string) error
 	GetSets() ([]*nftables.Set, error)
-	GetSetElements(*nftables.Set) ([]nftables.SetElement, error)
-	SetAddElements(*nftables.Set, []nftables.SetElement) error
-	SetDelElements(*nftables.Set, []nftables.SetElement) error
+	GetSetElements(string) ([]nftables.SetElement, error)
+	SetAddElements(string, []nftables.SetElement) error
+	SetDelElements(string, []nftables.SetElement) error
 }
 
 type nfSets struct {
@@ -56,16 +60,9 @@ func (nfs *nfSets) Sets() SetFuncs {
 
 func (nfs *nfSets) CreateSet(attrs *SetAttributes, elements []nftables.SetElement) (*nftables.Set, error) {
 	var err error
-	var fe []nftables.SetElement
 	// TODO Add parameters validation
 	setInterval := false
-	fe = elements
 	if attrs.KeyType == nftables.TypeIPAddr || attrs.KeyType == nftables.TypeIP6Addr {
-		// Since Key type is IPv4 or IPv6 address, the final elements needs to be processed
-		// to support IPv4/IPv6 ranges.
-
-		// Add processing here and then assign fe, new processed set of elements
-		fe = elements
 		setInterval = true
 	}
 	s := &nftables.Set{
@@ -80,68 +77,95 @@ func (nfs *nfSets) CreateSet(attrs *SetAttributes, elements []nftables.SetElemen
 		DataType:  attrs.DataType,
 	}
 	// Adding to new Set, provided elements if any provided
-	if err = nfs.conn.AddSet(s, fe); err != nil {
+	se := []nftables.SetElement{}
+	if nfs.table.Family == nftables.TableFamilyIPv4 {
+		se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
+	} else {
+		se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
+	}
+	se = append(se, elements...)
+	if err = nfs.conn.AddSet(s, elements); err != nil {
 		return nil, err
 	}
 	// Requesting Netfilter to programm it.
 	if err := nfs.conn.Flush(); err != nil {
 		return nil, err
 	}
+	nfs.Lock()
+	defer nfs.Unlock()
+	nfs.sets[attrs.Name] = s
 
 	return s, nil
 }
 
-func (nfs *nfSets) DelSet(set *nftables.Set) error {
-	nfs.conn.DelSet(set)
-	if err := nfs.conn.Flush(); err != nil {
-		return err
+// Exist check if the set with name exists in the store and programmed on the host,
+// if both checks succeed, true is returned, otherwise false is returned.
+func (nfs *nfSets) Exist(name string) bool {
+	nfs.Lock()
+	_, ok := nfs.sets[name]
+	nfs.Unlock()
+	if !ok {
+		return false
 	}
+	sets, err := nfs.GetSets()
+	if err != nil {
+		return false
+	}
+	for _, s := range sets {
+		if s.Name == name {
+			return true
+		}
+	}
+	return false
+}
 
+func (nfs *nfSets) DelSet(name string) error {
+	if nfs.Exist(name) {
+		nfs.conn.DelSet(nfs.sets[name])
+	}
+	// Returning nil for either case, if set does not exist ot it  was successfully deleted
 	return nil
 }
 
+// GetSets returns a slice programmed on the host for a specific table.
 func (nfs *nfSets) GetSets() ([]*nftables.Set, error) {
-	sets, err := nfs.conn.GetSets(nfs.table)
-	if err != nil {
-		return nil, err
-	}
-	if err := nfs.conn.Flush(); err != nil {
-		return nil, err
-	}
-
-	return sets, nil
+	return nfs.conn.GetSets(nfs.table)
 }
 
-func (nfs *nfSets) GetSetElements(set *nftables.Set) ([]nftables.SetElement, error) {
-	elements, err := nfs.conn.GetSetElements(set)
-	if err != nil {
-		return nil, err
+func (nfs *nfSets) GetSetElements(name string) ([]nftables.SetElement, error) {
+	if nfs.Exist(name) {
+		return nfs.conn.GetSetElements(nfs.sets[name])
 	}
-	if err := nfs.conn.Flush(); err != nil {
-		return nil, err
-	}
-
-	return elements, nil
+	return nil, fmt.Errorf("set %s does not exist", name)
 }
 
-func (nfs *nfSets) SetAddElements(set *nftables.Set, elements []nftables.SetElement) error {
-	if err := nfs.conn.SetAddElements(set, elements); err != nil {
-		return err
+func (nfs *nfSets) SetAddElements(name string, elements []nftables.SetElement) error {
+	if nfs.Exist(name) {
+		if err := nfs.conn.SetAddElements(nfs.sets[name], elements); err != nil {
+			return err
+		}
+		if err := nfs.conn.Flush(); err != nil {
+			return err
+		}
+		return nil
 	}
-	if err := nfs.conn.Flush(); err != nil {
-		return err
-	}
-	return nil
+
+	return fmt.Errorf("set %s does not exist", name)
 }
 
-func (nfs *nfSets) SetDelElements(set *nftables.Set, elements []nftables.SetElement) error {
-	if err := nfs.conn.SetDeleteElements(set, elements); err != nil {
-		return err
+func (nfs *nfSets) SetDelElements(name string, elements []nftables.SetElement) error {
+	if nfs.Exist(name) {
+		set := nfs.sets[name]
+		if err := nfs.conn.SetDeleteElements(set, elements); err != nil {
+			return err
+		}
+		if err := nfs.conn.Flush(); err != nil {
+			return err
+		}
+		return nil
 	}
-	if err := nfs.conn.Flush(); err != nil {
-		return err
-	}
-	return nil
+
+	return fmt.Errorf("set %s does not exist", name)
 }
 
 func newSets(conn NetNS, t *nftables.Table) SetsInterface {
@@ -156,53 +180,37 @@ func newSets(conn NetNS, t *nftables.Table) SetsInterface {
 // carries IP address which will be used as a key in the element, and 3 possible values depending on the
 // type of a set. Value could be IP address as a string, Port as uint16 and a nftables.Verdict
 // For IPv4 addresses ipv4 bool should be set to true, otherwise IPv6 addresses are expected.
-func MakeIPAddrElement(input []*IPAddrElement, ipv4 bool) ([]nftables.SetElement, error) {
-	var addrs []*IPAddr
-	var orgElements []nftables.SetElement
-	for _, i := range input {
-		addr, err := NewIPAddr(i.Addr)
+func MakeIPAddrElement(input *IPAddrElement) ([]nftables.SetElement, error) {
+	addr, err := NewIPAddr(input.Addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO Figure out if overlapping and possibility of collapsing needs to be checked.
+	elements := buildElementRanges([]*IPAddr{addr})
+	p := &elements[0]
+	switch {
+	case input.AddrIP != nil:
+		valAddr, err := NewIPAddr(*input.AddrIP)
 		if err != nil {
 			return nil, err
 		}
-		if ipv4 {
-			if addr.IsIPv6() {
-				return nil, fmt.Errorf("cannot mix ipv4 and ipv6 addresses in the same set")
-			}
-		} else {
-			if !addr.IsIPv6() {
-				return nil, fmt.Errorf("cannot mix ipv4 and ipv6 addresses in the same set")
+		// Checking that both key and value were of the same Family ether IPv4 or IPv6
+		if addr.IsIPv6() {
+			if !valAddr.IsIPv6() {
+				return nil, fmt.Errorf("cannot mix ipv4 and ipv6 addresses in the same element")
 			}
 		}
-		addrs = append(addrs, addr)
-		s := nftables.SetElement{
-			Key: addr.IP,
-		}
-		switch {
-		case i.AddrIP != nil:
-			valAddr, err := NewIPAddr(*i.AddrIP)
-			if err != nil {
-				return nil, err
-			}
+		if !addr.IsIPv6() {
 			if valAddr.IsIPv6() {
-				return nil, fmt.Errorf("cannot mix ipv4 and ipv6 addresses in the same set")
-			}
-			s.Val = valAddr.IP
-		case i.Port != nil:
-			s.Val = binaryutil.BigEndian.PutUint16(*i.Port)
-		case i.Verdict != nil:
-			s.VerdictData = i.Verdict
-		}
-		orgElements = append(orgElements, s)
-	}
-	elements := buildElementRanges(addrs)
-	for i := 0; i < len(elements); i++ {
-		for j := 0; j < len(orgElements); j++ {
-			if bytes.Compare(elements[i].Key, orgElements[j].Key) == 0 {
-				p := &elements[i]
-				p.Val = orgElements[j].Val
-				p.VerdictData = orgElements[j].VerdictData
+				return nil, fmt.Errorf("cannot mix ipv4 and ipv6 addresses in the same element")
 			}
 		}
+		p.Val = valAddr.IP
+	case input.Port != nil:
+		p.Val = binaryutil.BigEndian.PutUint16(*input.Port)
+	case input.Verdict != nil:
+		p.VerdictData = input.Verdict
 	}
 
 	return elements, nil
