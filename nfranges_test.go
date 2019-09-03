@@ -1,6 +1,7 @@
 package nftableslib
 
 import (
+	"bytes"
 	"net"
 	"reflect"
 	"sort"
@@ -169,7 +170,7 @@ func TestTryCollapse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		networks := ByMask{
+		networks := byMask{
 			byMask: tt.list,
 		}
 		sort.Sort(&networks)
@@ -201,6 +202,56 @@ func TestComputeGapRange(t *testing.T) {
 		got := computeGapRange(tt.cidr)
 		if !reflect.DeepEqual(got, tt.want) {
 			t.Fatalf("Test \"%s\" failed, got: %+v want: %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestGetNetworks(t *testing.T) {
+	addr1, _ := NewIPAddr("4.4.4.0/24")
+	addr2, _ := NewIPAddr("1.4.0.0/16")
+	addr3, _ := NewIPAddr("2.0.0.0/8")
+	addr4, _ := NewIPAddr("2.4.4.0/25")
+	addr5, _ := NewIPAddr("5.5.0.0/16")
+	tests := []struct {
+		name string
+		list []*IPAddr
+		want [][]*IPAddr
+	}{
+		{
+			name: "Empty list",
+			list: nil,
+			want: nil,
+		},
+		{
+			name: "1 element",
+			list: []*IPAddr{addr1},
+			want: [][]*IPAddr{
+				[]*IPAddr{addr1},
+			},
+		},
+		{
+			name: "5 elements",
+			list: []*IPAddr{addr1, addr2, addr3, addr4, addr5},
+			want: [][]*IPAddr{
+				[]*IPAddr{addr2},
+				[]*IPAddr{addr3, addr4},
+				[]*IPAddr{addr1},
+				[]*IPAddr{addr5},
+			},
+		},
+	}
+	for _, tt := range tests {
+		a := byIP{
+			byIP: tt.list,
+		}
+		sort.Sort(&a)
+		got := getNetworks(a.byIP)
+		for i := 0; i < len(got); i++ {
+			for j := 0; j < len(got[i]); j++ {
+				if bytes.Compare(tt.want[i][j].IP.To4(), got[i][j].IP.To4()) != 0 {
+					t.Errorf("Test \"%s\" failed, expected %+v got %+v", tt.name, *tt.want[i][j], *got[i][j])
+				}
+			}
 		}
 	}
 }

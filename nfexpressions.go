@@ -517,6 +517,76 @@ func getExprForConntracks(cts []*Conntrack) []expr.Any {
 	return re
 }
 
+func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	if l4proto == 0 {
+		return nil, fmt.Errorf("l4 protocol is 0")
+	}
+	re := []expr.Any{}
+	re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
+	re = append(re, &expr.Cmp{
+		Op:       expr.CmpOpEq,
+		Register: 1,
+		Data:     []byte{l4proto},
+	})
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseTransportHeader,
+		Offset:       offset, // Offset for a transport protocol header
+		Len:          2,      // 2 bytes for port
+	})
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
+
+	e := &expr.Lookup{
+		SourceRegister: 1,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	}
+	if set.IsMap {
+		e.IsDestRegSet = true
+		e.DestRegister = 0
+	}
+	re = append(re, e)
+
+	return re, nil
+}
+
+// getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
+func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	addrLen := 4
+	if l3proto == nftables.TableFamilyIPv6 {
+		addrLen = 16
+	}
+	re = append(re, &expr.Payload{
+		DestRegister: 1,
+		Base:         expr.PayloadBaseNetworkHeader,
+		Offset:       offset,          // Offset ip address in network header
+		Len:          uint32(addrLen), // length bytes for ip address
+	})
+	excl := false
+	if op == NEQ {
+		excl = true
+	}
+	e := &expr.Lookup{
+		SourceRegister: 1,
+		Invert:         excl,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	}
+	if set.IsMap {
+		e.DestRegister = 0
+		e.IsDestRegSet = true
+	}
+	re = append(re, e)
+
+	return re, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8

@@ -509,9 +509,10 @@ const (
 
 // IPAddrSpec lists possible flavours if specifying ip address, either List or Range can be specified
 type IPAddrSpec struct {
-	List  []*IPAddr
-	Range [2]*IPAddr
-	RelOp Operator
+	List   []*IPAddr
+	Range  [2]*IPAddr
+	SetRef *SetRef
+	RelOp  Operator
 }
 
 // NewIPAddr is a helper function which converts ip address into IPAddr format
@@ -614,11 +615,19 @@ func (l3 *L3Rule) Validate() error {
 	return nil
 }
 
+// SetRef defines a reference to a Set/Map/Vmap
+type SetRef struct {
+	Name  string
+	ID    uint32
+	IsMap bool
+}
+
 // Port lists possible flavours of specifying port information
 type Port struct {
-	List  []*uint16
-	Range [2]*uint16
-	RelOp Operator
+	List   []*uint16
+	Range  [2]*uint16
+	RelOp  Operator
+	SetRef *SetRef
 }
 
 // SetPortList is a helper function which transforms a slice of int into
@@ -645,11 +654,23 @@ func SetPortRange(ports [2]int) [2]*uint16 {
 
 // Validate check parameters of Port struct
 func (p *Port) Validate() error {
-	if len(p.List) != 0 && (p.Range[0] != nil || p.Range[1] != nil) {
-		return fmt.Errorf("either List or Range but not both can be specified")
+	set := 0
+	switch {
+	case len(p.List) != 0:
+		set++
+	case p.Range[0] != nil || p.Range[1] != nil:
+		if p.Range[0] == nil || p.Range[1] == nil {
+			return fmt.Errorf("port range requires both ports of the range to be non nil")
+		}
+		set++
+	case p.SetRef != nil:
+		set++
 	}
-	if len(p.List) == 0 && (p.Range[0] == nil || p.Range[1] == nil) {
-		return fmt.Errorf("neither List nor Range is specified")
+	if set > 1 {
+		return fmt.Errorf("either List or Range or SetRef but not the combination of them can be specified")
+	}
+	if set == 0 {
+		return fmt.Errorf("neither List nor Range nor SetRef is specified")
 	}
 
 	return nil
