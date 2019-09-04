@@ -139,6 +139,18 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
 		case rule.Action.reject != nil:
 			r.Exprs = append(r.Exprs, getExprForReject(rule.Action.reject)...)
+		case rule.Action.snat != nil:
+			e, err = getExprForSNAT(nfr.table.Family, rule.Action.snat)
+			if err != nil {
+				return nil, err
+			}
+			r.Exprs = append(r.Exprs, e...)
+		case rule.Action.snat != nil:
+			e, err = getExprForDNAT(nfr.table.Family, rule.Action.dnat)
+			if err != nil {
+				return nil, err
+			}
+			r.Exprs = append(r.Exprs, e...)
 		}
 	}
 	r.Table = nfr.table
@@ -719,6 +731,24 @@ type masquerade struct {
 	toPort      [2]*uint16
 }
 
+// snat defines a struct describing snat action
+type snat struct {
+	random      *bool
+	fullyRandom *bool
+	persistent  *bool
+	address     *IPAddrSpec
+	port        *Port
+}
+
+// dnat defines a struct describing dnat action
+type dnat struct {
+	random      *bool
+	fullyRandom *bool
+	persistent  *bool
+	address     *IPAddrSpec
+	port        *Port
+}
+
 // reject defines reject action
 type reject struct {
 	rejectType uint32
@@ -753,6 +783,8 @@ type RuleAction struct {
 	verdict  *expr.Verdict
 	redirect *redirect
 	masq     *masquerade
+	snat     *snat
+	dnat     *dnat
 	reject   *reject
 }
 
@@ -805,6 +837,16 @@ func SetMasqToPort(port ...int) (*RuleAction, error) {
 	ra.masq.toPort = ports
 
 	return ra, nil
+}
+
+// SetSNAT builds RuleAction struct for SNAT action
+func SetSNAT() (*RuleAction, error) {
+	return nil, nil
+}
+
+// SetDNAT builds RuleAction struct for DNAT action
+func SetDNAT() (*RuleAction, error) {
+	return nil, nil
 }
 
 const (

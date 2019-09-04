@@ -587,6 +587,20 @@ func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef,
 	return re, nil
 }
 
+// getExprForSNAT returns expression for snat statement
+func getExprForSNAT(l3proto nftables.TableFamily, snat *snat) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	return re, nil
+}
+
+// getExprForDNAT returns expression for dnat statement
+func getExprForDNAT(l3proto nftables.TableFamily, dnat *dnat) ([]expr.Any, error) {
+	re := []expr.Any{}
+
+	return re, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8
