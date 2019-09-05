@@ -843,7 +843,7 @@ func setNat(nattype expr.NATType, natAttrs *NATAttributes) (*RuleAction, error) 
 	}
 	ra := &RuleAction{}
 	ra.nat = &nat{
-		nattype:     expr.NATTypeSourceNAT,
+		nattype:     nattype,
 		fullyRandom: &natAttrs.FullyRandom,
 		random:      &natAttrs.Random,
 		persistent:  &natAttrs.Persistent,
