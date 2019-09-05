@@ -351,10 +351,11 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, op Operator)
 		return re, nil
 	}
 	// [ cmp eq reg 1 0x00000006 ]
+	protobyte := binaryutil.NativeEndian.PutUint32(proto)
 	re = append(re, &expr.Cmp{
 		Op:       expr.CmpOpEq,
 		Register: 1,
-		Data:     binaryutil.NativeEndian.PutUint32(proto),
+		Data:     protobyte[0:1],
 	})
 
 	return re, nil
@@ -587,16 +588,101 @@ func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef,
 	return re, nil
 }
 
-// getExprForSNAT returns expression for snat statement
-func getExprForSNAT(l3proto nftables.TableFamily, snat *snat) ([]expr.Any, error) {
+// getExprForSNAT returns expression for nat statement
+func getExprForNAT(l3proto nftables.TableFamily, nat *nat) ([]expr.Any, error) {
 	re := []expr.Any{}
 
-	return re, nil
-}
+	// TODO, move validation to Validation method
+	if nat.address == nil && nat.port == nil {
+		return nil, fmt.Errorf("either address or port must be specified")
+	}
 
-// getExprForDNAT returns expression for dnat statement
-func getExprForDNAT(l3proto nftables.TableFamily, dnat *dnat) ([]expr.Any, error) {
-	re := []expr.Any{}
+	var regAddrMin, regAddrMax, regProtoMin, regProtoMax uint32
+	register := uint32(1)
+	if nat.address != nil {
+		var addr1, addr2 []byte
+		// NAT does not support a list of addresses, it supports either a single address List[0]
+		// or a range Range[0]-Range[1]
+		switch {
+		case nat.address.List != nil:
+			if l3proto == nftables.TableFamilyIPv4 {
+				addr1 = []byte(nat.address.List[0].IP.To4())
+			} else {
+				addr1 = []byte(nat.address.List[0].IP.To16())
+			}
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     addr1,
+			})
+			regAddrMin = register
+			register++
+		case nat.address.Range[0] != nil && nat.address.Range[1] != nil:
+			if l3proto == nftables.TableFamilyIPv4 {
+				addr1 = []byte(nat.address.Range[0].IP.To4())
+				addr2 = []byte(nat.address.Range[1].IP.To4())
+			} else {
+				addr1 = []byte(nat.address.Range[0].IP.To16())
+				addr2 = []byte(nat.address.Range[1].IP.To16())
+			}
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     addr1,
+			})
+			regAddrMin = register
+			register++
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     addr2,
+			})
+			regAddrMax = register
+			register++
+		}
+	}
+	if nat.port != nil {
+		// NAT does not support a list of ports, it supports either a single port List[0]
+		// or a range of ports Range[0]-Range[1]
+		switch {
+		case nat.port.List != nil:
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     binaryutil.BigEndian.PutUint16(*nat.port.List[0]),
+			})
+			regProtoMin = register
+			register++
+		case nat.port.Range[0] != nil && nat.port.Range[1] != nil:
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     binaryutil.BigEndian.PutUint16(*nat.port.Range[0]),
+			})
+			regProtoMin = register
+			register++
+			re = append(re, &expr.Immediate{
+				Register: register,
+				Data:     binaryutil.BigEndian.PutUint16(*nat.port.Range[1]),
+			})
+			regProtoMax = register
+			register++
+		}
+	}
+	e := &expr.NAT{
+		Type:        nat.nattype,
+		Family:      uint32(l3proto),
+		RegAddrMin:  regAddrMin,
+		RegAddrMax:  regAddrMax,
+		RegProtoMin: regProtoMin,
+		RegProtoMax: regProtoMax,
+	}
+
+	if nat.random != nil {
+		e.Random = *nat.random
+	}
+	if nat.fullyRandom != nil {
+		e.FullyRandom = *nat.fullyRandom
+	}
+	if nat.persistent != nil {
+		e.Persistent = *nat.persistent
+	}
+	re = append(re, e)
 
 	return re, nil
 }
