@@ -3,7 +3,7 @@ module github.com/sbezverk/nftableslib
 go 1.12
 
 require (
-	github.com/google/nftables v0.0.0-20190831073643-a0a4b3333dde
+	github.com/google/nftables v0.0.0-20190906062827-5d14089d2edc
 	github.com/google/uuid v1.1.1
 	github.com/jsimonetti/rtnetlink v0.0.0-20190830100107-3784a6c7c552 // indirect
 	github.com/mdlayher/netlink v0.0.0-20190828143259-340058475d09 // indirect

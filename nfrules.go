@@ -139,6 +139,12 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
 		case rule.Action.reject != nil:
 			r.Exprs = append(r.Exprs, getExprForReject(rule.Action.reject)...)
+		case rule.Action.nat != nil:
+			e, err = getExprForNAT(nfr.table.Family, rule.Action.nat)
+			if err != nil {
+				return nil, err
+			}
+			r.Exprs = append(r.Exprs, e...)
 		}
 	}
 	r.Table = nfr.table
@@ -719,6 +725,16 @@ type masquerade struct {
 	toPort      [2]*uint16
 }
 
+// nat defines a struct describing nat action
+type nat struct {
+	nattype     expr.NATType
+	random      *bool
+	fullyRandom *bool
+	persistent  *bool
+	address     *IPAddrSpec
+	port        *Port
+}
+
 // reject defines reject action
 type reject struct {
 	rejectType uint32
@@ -753,6 +769,7 @@ type RuleAction struct {
 	verdict  *expr.Verdict
 	redirect *redirect
 	masq     *masquerade
+	nat      *nat
 	reject   *reject
 }
 
@@ -805,6 +822,81 @@ func SetMasqToPort(port ...int) (*RuleAction, error) {
 	ra.masq.toPort = ports
 
 	return ra, nil
+}
+
+// NATAttributes defines parameters used to generate nftables nat rule
+// it is used as input parameter to two helper functions SetSNAT and SetDNAT
+// Either L3Addr or Port must be defined.
+// When 2 elements of array are specified, then the range of either ip addresses
+// or ports will be specified in NAT rule.
+type NATAttributes struct {
+	L3Addr      [2]*IPAddr
+	Port        [2]uint16
+	FullyRandom bool
+	Random      bool
+	Persistent  bool
+}
+
+func setNat(nattype expr.NATType, natAttrs *NATAttributes) (*RuleAction, error) {
+	if len(natAttrs.L3Addr) == 0 && len(natAttrs.Port) == 0 {
+		return nil, fmt.Errorf("either ip address or port must be specified")
+	}
+	ra := &RuleAction{}
+	ra.nat = &nat{
+		nattype:     nattype,
+		fullyRandom: &natAttrs.FullyRandom,
+		random:      &natAttrs.Random,
+		persistent:  &natAttrs.Persistent,
+	}
+	addr := &IPAddrSpec{}
+	switch {
+	case natAttrs.L3Addr[0] != nil && natAttrs.L3Addr[1] != nil:
+		// Both IP addresses are not nil, then pass them as Range
+		addr.Range = [2]*IPAddr{}
+		addr.Range[0] = natAttrs.L3Addr[0]
+		addr.Range[1] = natAttrs.L3Addr[1]
+
+	case natAttrs.L3Addr[0] == nil && natAttrs.L3Addr[1] != nil:
+		return nil, fmt.Errorf("first element of a range cannot be nil")
+	case natAttrs.L3Addr[0] != nil:
+		// Single IP is specified, then pass it as a single element of the list
+		addr.List = make([]*IPAddr, 1)
+		addr.List[0] = natAttrs.L3Addr[0]
+	}
+	ra.nat.address = addr
+	// Process port if it is specified
+	port := Port{}
+	switch {
+	case natAttrs.Port[0] != 0 && natAttrs.Port[1] != 0:
+		// Both Ports are not 0, then pass them as Range
+		port.Range = [2]*uint16{}
+		port.Range[0] = &natAttrs.Port[0]
+		port.Range[1] = &natAttrs.Port[1]
+
+	case natAttrs.Port[0] == 0 && natAttrs.Port[1] != 0:
+		return nil, fmt.Errorf("first element of a port range cannot be 0")
+	case natAttrs.Port[0] != 0:
+		// Single Port is specified, then pass it as a single element of the list
+		port.List = make([]*uint16, 1)
+		port.List[0] = &natAttrs.Port[0]
+	}
+	ra.nat.port = &port
+	// Add NAT flags is any specified
+	ra.nat.random = &natAttrs.Random
+	ra.nat.fullyRandom = &natAttrs.FullyRandom
+	ra.nat.persistent = &natAttrs.Persistent
+
+	return ra, nil
+}
+
+// SetSNAT builds RuleAction struct for SNAT action
+func SetSNAT(natAttrs *NATAttributes) (*RuleAction, error) {
+	return setNat(expr.NATTypeSourceNAT, natAttrs)
+}
+
+// SetDNAT builds RuleAction struct for DNAT action
+func SetDNAT(natAttrs *NATAttributes) (*RuleAction, error) {
+	return setNat(expr.NATTypeDestNAT, natAttrs)
 }
 
 const (
