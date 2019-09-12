@@ -11,12 +11,15 @@ Rule contains parameters for a rule to configure L3(ip/ipv6) and L4(tcp/udp/port
 
 ```
 type Rule struct {
-    L3      *L3Rule
-    L4      *L4Rule
-    Meta    *Meta
-    Log     *Log
-    Exclude bool
-    Action  *RuleAction
+	Fib        *Fib
+	L3         *L3Rule
+	L4         *L4Rule
+	Conntracks []*Conntrack
+	Meta       *Meta
+	Log        *Log
+	RelOp      Operator
+	Action     *RuleAction
+	UserData   []byte
 }
 ```
 **Meta** Allows to specify additional matching criteria, for more details on supported keys, see [Meta Expressions section in nft man document](https://www.netfilter.org/projects/nftables/manpage.html)
