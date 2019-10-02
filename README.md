@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/sbezverk/nftableslib.svg?branch=master)](https://travis-ci.org/sbezverk/nftableslib)
 # **nftableslib** - a library for Golang to talk to Netfilter 
 
-nftableslib is a library offering an interface to Netfilter tables. It is based on "github.com/google/nftables" and offers a higher level of abstruction. 
+nftableslib is a library offering an interface to Netfilter tables. It is based on "github.com/google/nftables" and offers a higher level of abstraction. 
 It allows to create tables, chains and rules. Once table is creates, a caller can request this table's Chains interface to create chains within this table.
 Similarly, once chain is created, a caller can request this chain's Rules interface to create rules for this chain.
 
@@ -49,19 +49,21 @@ Redirect requires either L3 or L4, if there is no condition to match some traffi
 L4 parameters are defined by L4 type:
 ```
 type L4Rule struct {
-	L4Proto int
+	L4Proto uint8
 	Src     *Port
 	Dst     *Port
+	RelOp   Operator
 }
 ```
 
 L3 parameters are defined by L3 type:
 ```
 type L3Rule struct {
-	Src *IPAddrSpec
-	Dst *IPAddrSpec
-	Version *uint32
-    Protocol *uint32
+	Src      *IPAddrSpec
+	Dst      *IPAddrSpec
+	Version  *byte
+	Protocol *uint32
+	RelOp    Operator
 }
 ```
 **Version** parameter is used to match against a particular IP protocol version. Example, all IPv4 or all IPv6 traffic.
