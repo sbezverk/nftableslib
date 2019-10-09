@@ -16,4 +16,4 @@ script:
   - go test ./...
   - go test -c github.com/sbezverk/nftableslib
   - go build -o ./e2e/e2e ./e2e/main.go
-  - ./e2e/e2e
+  - sudo ./e2e/e2e
