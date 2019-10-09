@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -16,17 +18,19 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-// P2PTestEnv defines methods to interact with an instantiated p2p test environment
-type P2PTestEnv interface {
-	Cleanup()
-}
-
 const (
 	// ProtocolICMP defines offset in bytes for IPv4 ICMP
 	ProtocolICMP = 1
 	// ProtocolIPv6ICMP defines offset in bytes for IPv6 ICMP
 	ProtocolIPv6ICMP = 58
 )
+
+// P2PTestEnv defines methods to interact with an instantiated p2p test environment
+type P2PTestEnv interface {
+	Cleanup()
+	GetNamespace() []netns.NsHandle
+	GetIPs() []*net.IPNet
+}
 
 // p2pEnv contains variables and functions for an instantiated test environment
 type p2pEnv struct {
@@ -36,6 +40,14 @@ type p2pEnv struct {
 	ip2   *net.IPNet
 	link1 netlink.Link
 	link2 netlink.Link
+}
+
+func (e *p2pEnv) GetNamespace() []netns.NsHandle {
+	return []netns.NsHandle{e.ns1, e.ns2}
+}
+
+func (e *p2pEnv) GetIPs() []*net.IPNet {
+	return []*net.IPNet{e.ip1, e.ip2}
 }
 
 // NewP2PTestEnv sets up two new net namespaces, builds a link between them and assigns
@@ -85,10 +97,12 @@ func NewP2PTestEnv(ip1s, ip2s string) (P2PTestEnv, error) {
 		return nil, err
 	}
 	// Test connectivity between
-	if err := testConnectivity(e); err != nil {
+	if err := TestICMP(e.ns1, unix.IPPROTO_ICMP, e.ip1, e.ip2); err != nil {
 		return nil, err
 	}
-
+	if err := TestICMP(e.ns2, unix.IPPROTO_ICMP, e.ip2, e.ip1); err != nil {
+		return nil, err
+	}
 	return &e, nil
 }
 
@@ -287,30 +301,39 @@ func setVethIPAddr(e p2pEnv) error {
 	return nil
 }
 
-func testConnectivity(e p2pEnv) error {
+// TestICMP tests icmp connectivity between two namespaces, ping is initiated in source namespace
+// and destination namespace is expected to reply with echo reply packets
+func TestICMP(sourceNS netns.NsHandle, protocol int, saddr, daddr *net.IPNet) error {
 	// Preserving original net namespace
 	org, err := netns.Get()
 	if err != nil {
 		return err
 	}
 	defer netns.Set(org)
-	if err := netns.Set(e.ns2); err != nil {
+	if err := netns.Set(sourceNS); err != nil {
 		return err
 	}
-	// Starting listener
-	proto := "ip4:icmp"
-	protoStart := ProtocolICMP
-	wm := icmp.Message{
-		Type: ipv4.ICMPTypeEcho, Code: 0,
-	}
-	if e.ip2.IP.To4() == nil {
+	var proto string
+	var protoStart int
+	var wm icmp.Message
+	switch protocol {
+	case unix.IPPROTO_ICMP:
+		proto = "ip4:icmp"
+		protoStart = ProtocolICMP
+		wm = icmp.Message{
+			Type: ipv4.ICMPTypeEcho, Code: 0,
+		}
+	case unix.IPPROTO_ICMPV6:
 		proto = "ip6:ipv6-icmp"
 		protoStart = ProtocolIPv6ICMP
 		wm = icmp.Message{
 			Type: ipv6.ICMPTypeEchoRequest, Code: 0,
 		}
+	default:
+		return fmt.Errorf("Unknown ICMP protocol %+v", protocol)
 	}
-	c, err := icmp.ListenPacket(proto, e.ip2.IP.String())
+	// Starting listener
+	c, err := icmp.ListenPacket(proto, saddr.IP.String())
 	if err != nil {
 		return fmt.Errorf("call ListenPacket failed with error: %+v", err)
 	}
@@ -326,7 +349,7 @@ func testConnectivity(e p2pEnv) error {
 	}
 
 	for i := 0; i < 5; i++ {
-		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(e.ip1.IP.String())}); err != nil {
+		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(daddr.IP.String())}); err != nil {
 			return err
 		}
 		rb := make([]byte, 1500)
