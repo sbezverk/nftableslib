@@ -3,6 +3,7 @@ package setenv
 import (
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -10,6 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 // P2PTestEnv defines methods to interact with an instantiated p2p test environment
@@ -17,12 +21,21 @@ type P2PTestEnv interface {
 	Cleanup()
 }
 
+const (
+	// ProtocolICMP defines offset in bytes for IPv4 ICMP
+	ProtocolICMP = 1
+	// ProtocolIPv6ICMP defines offset in bytes for IPv6 ICMP
+	ProtocolIPv6ICMP = 58
+)
+
 // p2pEnv contains variables and functions for an instantiated test environment
 type p2pEnv struct {
-	ns1 netns.NsHandle
-	ns2 netns.NsHandle
-	ip1 *net.IPNet
-	ip2 *net.IPNet
+	ns1   netns.NsHandle
+	ns2   netns.NsHandle
+	ip1   *net.IPNet
+	ip2   *net.IPNet
+	link1 netlink.Link
+	link2 netlink.Link
 }
 
 // NewP2PTestEnv sets up two new net namespaces, builds a link between them and assigns
@@ -64,14 +77,17 @@ func NewP2PTestEnv(ip1s, ip2s string) (P2PTestEnv, error) {
 		LinkAttrs: linkAttr,
 		PeerName:  intf2,
 	}
-	link1, link2, err := addVethToNS(e.ns1, e.ns2, veth)
+	e.link1, e.link2, err = addVethToNS(e.ns1, e.ns2, veth)
 	if err != nil {
 		return nil, err
 	}
-	if err := setVethIPAddr(e.ns1, e.ns2, link1, link2, e.ip1, e.ip2); err != nil {
+	if err := setVethIPAddr(e); err != nil {
 		return nil, err
 	}
 	// Test connectivity between
+	if err := testConnectivity(e); err != nil {
+		return nil, err
+	}
 
 	return &e, nil
 }
@@ -148,11 +164,11 @@ func addVethToNS(ns1, ns2 netns.NsHandle, veth *netlink.Veth) (netlink.Link, net
 	if err = nsh1.LinkAdd(veth); err != nil {
 		return nil, nil, fmt.Errorf("failure to add veth to pod with error: %+v", err)
 	}
-	l1, err := waitForLink(nsh1, veth.Name)
+	l1, err := waitForLink(ns1, veth.Name)
 	if err != nil {
 		return nil, nil, err
 	}
-	l2, err := waitForLink(nsh1, veth.PeerName)
+	l2, err := waitForLink(ns1, veth.PeerName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -170,12 +186,7 @@ func addVethToNS(ns1, ns2 netns.NsHandle, veth *netlink.Veth) (netlink.Link, net
 		return nil, nil, fmt.Errorf("failed to switch to namespace %s with error: %+v", ns2, err)
 	}
 
-	nsh2, err := netlink.NewHandleAt(ns2)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failure to get handle with error: %+v", err)
-	}
-
-	_, err = waitForLink(nsh2, veth.PeerName)
+	_, err = waitForLink(ns2, veth.PeerName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failure to get link with error: %+v", err)
 	}
@@ -186,11 +197,20 @@ func addVethToNS(ns1, ns2 netns.NsHandle, veth *netlink.Veth) (netlink.Link, net
 	return l1, l2, nil
 }
 
-func waitForLink(namespaceHandle *netlink.Handle, linkName string) (netlink.Link, error) {
+func waitForLink(ns netns.NsHandle, linkName string) (netlink.Link, error) {
+	org, err := netns.Get()
+	if err != nil {
+		return nil, err
+	}
+	defer netns.Set(org)
+	nsh, err := netlink.NewHandleAt(ns)
+	if err != nil {
+		return nil, fmt.Errorf("failure to get namespace's handle with error: %+v", err)
+	}
 	ticker := time.NewTicker(time.Second * 1)
 	timeout := time.NewTimer(time.Second * 10)
 	for {
-		links, _ := namespaceHandle.LinkList()
+		links, _ := nsh.LinkList()
 		for _, link := range links {
 			if link.Attrs().Name == linkName {
 				return link, nil
@@ -222,14 +242,14 @@ func moveLinkIntoNS(link netlink.Link, ns netns.NsHandle) error {
 	}
 }
 
-func setVethIPAddr(ns1, ns2 netns.NsHandle, link1, link2 netlink.Link, ip1, ip2 *net.IPNet) error {
+func setVethIPAddr(e p2pEnv) error {
 	var addr1, addr2 *net.IPNet
-	if ip1.IP.To4() != nil {
-		addr1 = &net.IPNet{IP: ip1.IP.To4(), Mask: net.CIDRMask(ip1.Mask.Size())}
-		addr2 = &net.IPNet{IP: ip2.IP.To4(), Mask: net.CIDRMask(ip2.Mask.Size())}
+	if e.ip1.IP.To4() != nil {
+		addr1 = &net.IPNet{IP: e.ip1.IP.To4(), Mask: net.CIDRMask(e.ip1.Mask.Size())}
+		addr2 = &net.IPNet{IP: e.ip2.IP.To4(), Mask: net.CIDRMask(e.ip2.Mask.Size())}
 	} else {
-		addr1 = &net.IPNet{IP: ip1.IP.To16(), Mask: net.CIDRMask(ip1.Mask.Size())}
-		addr2 = &net.IPNet{IP: ip2.IP.To16(), Mask: net.CIDRMask(ip2.Mask.Size())}
+		addr1 = &net.IPNet{IP: e.ip1.IP.To16(), Mask: net.CIDRMask(e.ip1.Mask.Size())}
+		addr2 = &net.IPNet{IP: e.ip2.IP.To16(), Mask: net.CIDRMask(e.ip2.Mask.Size())}
 	}
 
 	var vethAddr1 = &netlink.Addr{IPNet: addr1, Peer: addr2}
@@ -241,25 +261,121 @@ func setVethIPAddr(ns1, ns2 netns.NsHandle, link1, link2 netlink.Link, ip1, ip2 
 	}
 	defer netns.Set(ns)
 
-	if err := netns.Set(ns1); err != nil {
-		return fmt.Errorf("failed to switch to namespace %s with error: %+v", ns1, err)
+	if err := netns.Set(e.ns1); err != nil {
+		return fmt.Errorf("failed to switch to namespace %s with error: %+v", e.ns1, err)
 	}
 
-	if _, ok := link1.(*netlink.Veth); !ok {
-		return fmt.Errorf("failure, got unexpected interface type: %+v", reflect.TypeOf(link1))
+	if _, ok := e.link1.(*netlink.Veth); !ok {
+		return fmt.Errorf("failure, got unexpected interface type: %+v", reflect.TypeOf(e.link1))
 	}
-	if err := netlink.AddrAdd(link1, vethAddr1); err != nil {
+	if err := netlink.AddrAdd(e.link1, vethAddr1); err != nil {
 		return fmt.Errorf("failure to assign IP to veth interface with error: %+v", err)
 	}
-	if err := netns.Set(ns2); err != nil {
-		return fmt.Errorf("failed to switch to namespace %s with error: %+v", ns1, err)
+	if err := netns.Set(e.ns2); err != nil {
+		return fmt.Errorf("failed to switch to namespace %s with error: %+v", e.ns2, err)
 	}
-	if _, ok := link2.(*netlink.Veth); !ok {
-		return fmt.Errorf("failure, got unexpected interface type: %+v", reflect.TypeOf(link2))
+	if _, ok := e.link2.(*netlink.Veth); !ok {
+		return fmt.Errorf("failure, got unexpected interface type: %+v", reflect.TypeOf(e.link2))
 	}
-	if err := netlink.AddrAdd(link2, vethAddr2); err != nil {
+	if err := netlink.AddrAdd(e.link2, vethAddr2); err != nil {
 		return fmt.Errorf("failure to assign IP to veth interface with error: %+v", err)
 	}
 
+	// printNSLink(e.ns1)
+	// printNSLink(e.ns2)
+
+	return nil
+}
+
+func testConnectivity(e p2pEnv) error {
+	// Preserving original net namespace
+	org, err := netns.Get()
+	if err != nil {
+		return err
+	}
+	defer netns.Set(org)
+	if err := netns.Set(e.ns2); err != nil {
+		return err
+	}
+	// Starting listener
+	proto := "ip4:icmp"
+	protoStart := ProtocolICMP
+	wm := icmp.Message{
+		Type: ipv4.ICMPTypeEcho, Code: 0,
+	}
+	if e.ip2.IP.To4() == nil {
+		proto = "ip6:ipv6-icmp"
+		protoStart = ProtocolIPv6ICMP
+		wm = icmp.Message{
+			Type: ipv6.ICMPTypeEchoRequest, Code: 0,
+		}
+	}
+	c, err := icmp.ListenPacket(proto, e.ip2.IP.String())
+	if err != nil {
+		return fmt.Errorf("call ListenPacket failed with error: %+v", err)
+	}
+	defer c.Close()
+
+	wm.Body = &icmp.Echo{
+		ID: os.Getpid() & 0xffff, Seq: 1,
+		Data: []byte("ping"),
+	}
+	wb, err := wm.Marshal(nil)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < 5; i++ {
+		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(e.ip1.IP.String())}); err != nil {
+			return err
+		}
+		rb := make([]byte, 1500)
+		c.SetReadDeadline(time.Now().Add(time.Second * 2))
+		n, peer, err := c.ReadFrom(rb)
+		if err != nil {
+			return err
+		}
+		rm, err := icmp.ParseMessage(protoStart, rb[:n])
+		if err != nil {
+			return err
+		}
+		switch rm.Type {
+		case ipv4.ICMPTypeEchoReply:
+		case ipv6.ICMPTypeEchoReply:
+		default:
+			return fmt.Errorf("Unexpected reply during connectivity test from peer: %s", peer.String())
+		}
+	}
+
+	return nil
+}
+
+func printNSLink(ns netns.NsHandle) error {
+	org, err := netns.Get()
+	if err != nil {
+		return err
+	}
+	defer netns.Set(org)
+	if err := netns.Set(ns); err != nil {
+		return fmt.Errorf("failed to switch to namespace %s with error: %+v", ns, err)
+	}
+	nsh, err := netlink.NewHandleAt(ns)
+	if err != nil {
+		return fmt.Errorf("failure to get namespace's handle with error: %+v", err)
+	}
+	links, err := nsh.LinkList()
+	if err != nil {
+		return fmt.Errorf("failure to get a list of links from the namespace %s with error: %+v", ns.String(), err)
+	}
+	for _, link := range links {
+		fmt.Printf("Link: %s\n", link.Attrs().Name)
+		addrs, err := netlink.AddrList(link, netlink.FAMILY_ALL)
+		if err != nil {
+			return err
+		}
+		for _, addr := range addrs {
+			fmt.Printf("- %s\n", addr.IPNet.IP.String())
+		}
+	}
 	return nil
 }
