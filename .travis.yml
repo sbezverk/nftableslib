@@ -15,3 +15,5 @@ script:
   - go vet .
   - go test ./...
   - go test -c github.com/sbezverk/nftableslib
+  - go build -o ./e2e/e2e ./e2e/main.go
+  - ./e2e/e2e
