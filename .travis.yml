@@ -1,11 +1,11 @@
 # Use the (faster) container-based infrastructure, see also
 # http://docs.travis-ci.com/user/workers/container-based-infrastructure/
 sudo: true
-dist: trusty
+dist: bionic
 
 language: go
 go:
-  - "1.12"
+  - "1.13"
 
 script:
   # Check whether files are syntactically correct.
