@@ -1,11 +1,11 @@
 # Use the (faster) container-based infrastructure, see also
 # http://docs.travis-ci.com/user/workers/container-based-infrastructure/
 sudo: true
-dist: trusty
+dist: bionic
 
 language: go
 go:
-  - "1.12"
+  - "1.13"
 
 script:
   # Check whether files are syntactically correct.
@@ -15,5 +15,6 @@ script:
   - go vet .
   - go test ./...
   - go test -c github.com/sbezverk/nftableslib
-  - go build -o ./e2e/e2e ./e2e/main.go
-  - sudo ./e2e/e2e
+  - cd ./e2e
+  - GO111MODULE="on" go build -a -o ../bin/e2e main.go
+  - sudo ../bin/e2e
