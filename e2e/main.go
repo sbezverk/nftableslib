@@ -135,7 +135,8 @@ func nftablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[nf
 	conn := nftableslib.InitConn(int(ns))
 	ti := nftableslib.InitNFTables(conn)
 
-	tn := uuid.New().String()
+	tn := uuid.New().String()[:16]
+	fmt.Printf("Table name: %s\n", tn)
 	if err := ti.Tables().CreateImm(tn, version); err != nil {
 		return fmt.Errorf("failed to create table with error: %+v", err)
 	}
