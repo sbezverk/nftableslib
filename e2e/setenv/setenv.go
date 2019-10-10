@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/sys/unix"
-
+	"github.com/google/nftables"
 	"github.com/google/uuid"
+	"github.com/sbezverk/nftableslib"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/net/icmp"
@@ -29,15 +29,15 @@ const (
 type P2PTestEnv interface {
 	Cleanup()
 	GetNamespace() []netns.NsHandle
-	GetIPs() []*net.IPNet
+	GetIPs() []*nftableslib.IPAddr
 }
 
 // p2pEnv contains variables and functions for an instantiated test environment
 type p2pEnv struct {
 	ns1   netns.NsHandle
 	ns2   netns.NsHandle
-	ip1   *net.IPNet
-	ip2   *net.IPNet
+	ip1   *nftableslib.IPAddr
+	ip2   *nftableslib.IPAddr
 	link1 netlink.Link
 	link2 netlink.Link
 }
@@ -46,13 +46,13 @@ func (e *p2pEnv) GetNamespace() []netns.NsHandle {
 	return []netns.NsHandle{e.ns1, e.ns2}
 }
 
-func (e *p2pEnv) GetIPs() []*net.IPNet {
-	return []*net.IPNet{e.ip1, e.ip2}
+func (e *p2pEnv) GetIPs() []*nftableslib.IPAddr {
+	return []*nftableslib.IPAddr{e.ip1, e.ip2}
 }
 
 // NewP2PTestEnv sets up two new net namespaces, builds a link between them and assigns
 // ip addresses to each end of the link. It also checks connectivity by using ping.
-func NewP2PTestEnv(ip1s, ip2s string) (P2PTestEnv, error) {
+func NewP2PTestEnv(version nftables.TableFamily, ip1s, ip2s string) (P2PTestEnv, error) {
 	var err error
 	e := p2pEnv{}
 	// Validate and normilize IPs
@@ -96,11 +96,12 @@ func NewP2PTestEnv(ip1s, ip2s string) (P2PTestEnv, error) {
 	if err := setVethIPAddr(e); err != nil {
 		return nil, err
 	}
+
 	// Test connectivity between
-	if err := TestICMP(e.ns1, unix.IPPROTO_ICMP, e.ip1, e.ip2); err != nil {
+	if err := TestICMP(e.ns1, version, e.ip1, e.ip2); err != nil {
 		return nil, err
 	}
-	if err := TestICMP(e.ns2, unix.IPPROTO_ICMP, e.ip2, e.ip1); err != nil {
+	if err := TestICMP(e.ns2, version, e.ip2, e.ip1); err != nil {
 		return nil, err
 	}
 	return &e, nil
@@ -111,7 +112,7 @@ func (e *p2pEnv) Cleanup() {
 	e.ns2.Close()
 }
 
-func normalizeIP(ip1s, ip2s string) (*net.IPNet, *net.IPNet, error) {
+func normalizeIP(ip1s, ip2s string) (*nftableslib.IPAddr, *nftableslib.IPAddr, error) {
 	ip1, err := newIPAddr(ip1s)
 	if err != nil {
 		return nil, nil, err
@@ -126,10 +127,18 @@ func normalizeIP(ip1s, ip2s string) (*net.IPNet, *net.IPNet, error) {
 }
 
 // newAddr checks and converts into CIDR formated IPv4 or IPv6 address
-func newIPAddr(addr string) (*net.IPNet, error) {
-	if _, ipnet, err := net.ParseCIDR(addr); err == nil {
+func newIPAddr(addr string) (*nftableslib.IPAddr, error) {
+	if ip, ipnet, err := net.ParseCIDR(addr); err == nil {
 		// Found a valid CIDR address
-		return ipnet, nil
+		ones, _ := ipnet.Mask.Size()
+		mask := uint8(ones)
+		return &nftableslib.IPAddr{
+			&net.IPAddr{
+				IP: ip,
+			},
+			true,
+			&mask,
+		}, nil
 	}
 	// Check if addr is just ip address in a non CIDR format
 	ip := net.ParseIP(addr)
@@ -140,11 +149,17 @@ func newIPAddr(addr string) (*net.IPNet, error) {
 	if ip.To4() == nil {
 		mask = uint8(128)
 	}
-	_, ipnet, err := net.ParseCIDR(addr + "/" + fmt.Sprintf("%d", mask))
+	ip, _, err := net.ParseCIDR(addr + "/" + fmt.Sprintf("%d", mask))
 	if err != nil {
 		return nil, err
 	}
-	return ipnet, nil
+	return &nftableslib.IPAddr{
+		&net.IPAddr{
+			IP: ip,
+		},
+		true,
+		&mask,
+	}, nil
 }
 
 func newIntfName(id int) string {
@@ -199,13 +214,21 @@ func addVethToNS(ns1, ns2 netns.NsHandle, veth *netlink.Veth) (netlink.Link, net
 	if err := netns.Set(ns2); err != nil {
 		return nil, nil, fmt.Errorf("failed to switch to namespace %s with error: %+v", ns2, err)
 	}
-
 	_, err = waitForLink(ns2, veth.PeerName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failure to get link with error: %+v", err)
 	}
 	if err := netlink.LinkSetUp(l2); err != nil {
 		return nil, nil, fmt.Errorf("failure setting link %s up with error: %+v", l2.Attrs().Name, err)
+	}
+	// Waiting for both links to become Operationally Up
+	l1, err = waitForLinkUp(ns1, l1)
+	if err != nil {
+		return nil, nil, err
+	}
+	l2, err = waitForLinkUp(ns2, l2)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return l1, l2, nil
@@ -239,6 +262,34 @@ func waitForLink(ns netns.NsHandle, linkName string) (netlink.Link, error) {
 	}
 }
 
+func waitForLinkUp(ns netns.NsHandle, link netlink.Link) (netlink.Link, error) {
+	org, err := netns.Get()
+	if err != nil {
+		return nil, err
+	}
+	defer netns.Set(org)
+	nsh, err := netlink.NewHandleAt(ns)
+	if err != nil {
+		return nil, fmt.Errorf("failure to get namespace's handle with error: %+v", err)
+	}
+	ticker := time.NewTicker(time.Second * 1)
+	timeout := time.NewTimer(time.Second * 10)
+	ln := link.Attrs().Name
+	for {
+		if link, err := nsh.LinkByName(ln); err == nil {
+			if link.Attrs().OperState == netlink.OperUp {
+				return link, nil
+			}
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-timeout.C:
+			return nil, fmt.Errorf("timeout waiting for the link to become operational")
+		}
+	}
+}
+
 func moveLinkIntoNS(link netlink.Link, ns netns.NsHandle) error {
 	ticker := time.NewTicker(time.Second * 1)
 	timeout := time.NewTimer(time.Second * 10)
@@ -259,11 +310,11 @@ func moveLinkIntoNS(link netlink.Link, ns netns.NsHandle) error {
 func setVethIPAddr(e p2pEnv) error {
 	var addr1, addr2 *net.IPNet
 	if e.ip1.IP.To4() != nil {
-		addr1 = &net.IPNet{IP: e.ip1.IP.To4(), Mask: net.CIDRMask(e.ip1.Mask.Size())}
-		addr2 = &net.IPNet{IP: e.ip2.IP.To4(), Mask: net.CIDRMask(e.ip2.Mask.Size())}
+		addr1 = &net.IPNet{IP: e.ip1.IP.To4(), Mask: net.CIDRMask(int(*e.ip1.Mask), 32)}
+		addr2 = &net.IPNet{IP: e.ip2.IP.To4(), Mask: net.CIDRMask(int(*e.ip2.Mask), 32)}
 	} else {
-		addr1 = &net.IPNet{IP: e.ip1.IP.To16(), Mask: net.CIDRMask(e.ip1.Mask.Size())}
-		addr2 = &net.IPNet{IP: e.ip2.IP.To16(), Mask: net.CIDRMask(e.ip2.Mask.Size())}
+		addr1 = &net.IPNet{IP: e.ip1.IP.To16(), Mask: net.CIDRMask(int(*e.ip1.Mask), 128)}
+		addr2 = &net.IPNet{IP: e.ip2.IP.To16(), Mask: net.CIDRMask(int(*e.ip2.Mask), 128)}
 	}
 
 	var vethAddr1 = &netlink.Addr{IPNet: addr1, Peer: addr2}
@@ -295,15 +346,15 @@ func setVethIPAddr(e p2pEnv) error {
 		return fmt.Errorf("failure to assign IP to veth interface with error: %+v", err)
 	}
 
-	// printNSLink(e.ns1)
-	// printNSLink(e.ns2)
+	printNSLink(e.ns1)
+	printNSLink(e.ns2)
 
 	return nil
 }
 
 // TestICMP tests icmp connectivity between two namespaces, ping is initiated in source namespace
 // and destination namespace is expected to reply with echo reply packets
-func TestICMP(sourceNS netns.NsHandle, protocol int, saddr, daddr *net.IPNet) error {
+func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, daddr *nftableslib.IPAddr) error {
 	// Preserving original net namespace
 	org, err := netns.Get()
 	if err != nil {
@@ -315,25 +366,31 @@ func TestICMP(sourceNS netns.NsHandle, protocol int, saddr, daddr *net.IPNet) er
 	}
 	var proto string
 	var protoStart int
+	var src, dst string
 	var wm icmp.Message
 	switch protocol {
-	case unix.IPPROTO_ICMP:
+	case nftables.TableFamilyIPv4:
 		proto = "ip4:icmp"
 		protoStart = ProtocolICMP
 		wm = icmp.Message{
 			Type: ipv4.ICMPTypeEcho, Code: 0,
 		}
-	case unix.IPPROTO_ICMPV6:
+		src = saddr.IP.To4().String()
+		dst = daddr.IP.To4().String()
+	case nftables.TableFamilyIPv6:
 		proto = "ip6:ipv6-icmp"
 		protoStart = ProtocolIPv6ICMP
 		wm = icmp.Message{
 			Type: ipv6.ICMPTypeEchoRequest, Code: 0,
 		}
+		src = saddr.IP.To16().String()
+		dst = daddr.IP.To16().String()
 	default:
-		return fmt.Errorf("Unknown ICMP protocol %+v", protocol)
+		return fmt.Errorf("unsupported table family %+v", protocol)
 	}
 	// Starting listener
-	c, err := icmp.ListenPacket(proto, saddr.IP.String())
+	fmt.Printf("Proto: %s Address: %s\n", proto, src)
+	c, err := icmp.ListenPacket(proto, src)
 	if err != nil {
 		return fmt.Errorf("call ListenPacket failed with error: %+v", err)
 	}
@@ -349,7 +406,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol int, saddr, daddr *net.IPNet) er
 	}
 
 	for i := 0; i < 5; i++ {
-		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(daddr.IP.String())}); err != nil {
+		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(dst)}); err != nil {
 			return err
 		}
 		rb := make([]byte, 1500)
