@@ -1,4 +1,4 @@
-package main
+package validations
 
 import (
 	"fmt"
@@ -30,8 +30,8 @@ func tcpListener(c *net.TCPListener, stopch chan struct{}, resultch chan struct{
 	}
 }
 
-// Validation function for test: "IPV4 Redirecting TCP port 8888 to 9999"
-func tcpPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
+// TCPPortRedirectValidation validation function for test: "IPV4 Redirecting TCP port 8888 to 9999"
+func TCPPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
 	org, err := netns.Get()
 	if err != nil {
 		return err
@@ -112,8 +112,8 @@ func getResult(resultch chan struct{}) error {
 	}
 }
 
-// Validation function for test: "IPV4 ICMP Drop"
-func icmpDropTestValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
+// ICMPDropTestValidation validation function for test: "IPV4 ICMP Drop"
+func ICMPDropTestValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
 	if err := setenv.TestICMP(ns[0], version, ip[0], ip[1]); err == nil {
 		return fmt.Errorf("failed as the connectivity test supposed to fail, but succeeded")
 	}

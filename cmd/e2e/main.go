@@ -10,7 +10,8 @@ import (
 	"github.com/google/nftables"
 	"github.com/google/uuid"
 	"github.com/sbezverk/nftableslib"
-	"github.com/sbezverk/nftableslib/e2e/setenv"
+	"github.com/sbezverk/nftableslib/pkg/e2e/setenv"
+	"github.com/sbezverk/nftableslib/pkg/e2e/validations"
 	"github.com/vishvananda/netns"
 )
 
@@ -35,35 +36,34 @@ func init() {
 
 func main() {
 	tests := []nftablesTest{
-		/*		{
-					name:    "IPV4 ICMP Drop",
-					version: nftables.TableFamilyIPv4,
-					dstNSRules: map[testChain][]nftableslib.Rule{
-						testChain{
-							"chain-1",
-							&nftableslib.ChainAttributes{
-								Type:     nftables.ChainTypeFilter,
-								Priority: 0,
-								Hook:     nftables.ChainHookInput,
-								Policy:   nftableslib.ChainPolicyAccept,
-							},
-						}: []nftableslib.Rule{
-							{
-								L3: &nftableslib.L3Rule{
-									Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
-									Dst: &nftableslib.IPAddrSpec{
-										List: []*nftableslib.IPAddr{setIPAddr("1.1.1.2")},
-									},
-								},
-								Action: setActionVerdict(nftableslib.NFT_DROP),
+		{
+			name:    "IPV4 ICMP Drop",
+			version: nftables.TableFamilyIPv4,
+			dstNSRules: map[testChain][]nftableslib.Rule{
+				testChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeFilter,
+						Priority: 0,
+						Hook:     nftables.ChainHookInput,
+						Policy:   nftableslib.ChainPolicyAccept,
+					},
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
+							Dst: &nftableslib.IPAddrSpec{
+								List: []*nftableslib.IPAddr{setIPAddr("1.1.1.2")},
 							},
 						},
+						Action: setActionVerdict(nftableslib.NFT_DROP),
 					},
-					saddr:      "1.1.1.1/24",
-					daddr:      "1.1.1.2/24",
-					validation: icmpDropTestValidation,
 				},
-		*/
+			},
+			saddr:      "1.1.1.1/24",
+			daddr:      "1.1.1.2/24",
+			validation: validations.ICMPDropTestValidation,
+		},
 		{
 			name:    "IPV4 Redirecting TCP port 8888 to 9999",
 			version: nftables.TableFamilyIPv4,
@@ -110,7 +110,7 @@ func main() {
 			},
 			saddr:      "1.1.1.1/24",
 			daddr:      "1.1.1.2/24",
-			validation: tcpPortRedirectValidation,
+			validation: validations.TCPPortRedirectValidation,
 		},
 		/* Currently by some unknown reasons, IPv6 refuses to bind to namespace's interface
 		   This test will be re-enabled after the solution is found.
