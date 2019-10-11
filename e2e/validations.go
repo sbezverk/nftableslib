@@ -12,8 +12,9 @@ import (
 )
 
 func tcpListener(c *net.TCPListener, stopch chan struct{}, resultch chan struct{}) error {
+	fmt.Printf("tcp listener listens for connections on: %s\n", c.Addr())
 	for {
-		c.SetDeadline(time.Now().Add(time.Second * 2))
+		c.SetDeadline(time.Now().Add(time.Second * 10))
 		_, err := c.Accept()
 		if err == nil {
 			resultch <- struct{}{}
@@ -68,8 +69,8 @@ func tcpPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle
 		return fmt.Errorf("call ListenTCP failed with error: %+v", err)
 	}
 	defer cl.Close()
+	// Starting tcp listener go routine and defining cleanup deferred call.
 	go tcpListener(cl, stopch, resultch)
-
 	defer func() {
 		stopch <- struct{}{}
 		<-stopch
@@ -79,8 +80,8 @@ func tcpPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle
 	if err := netns.Set(ns[0]); err != nil {
 		return err
 	}
-	// Setting Dial timeout to 10 seconds, as default timeout is too long.
-	d := net.Dialer{Timeout: time.Second * 10}
+	// Setting Dial timeout to 30 seconds, as default timeout is too long.
+	d := net.Dialer{Timeout: time.Second * 30}
 	cd, err := d.Dial(proto, daddr+":8888")
 	if err != nil {
 		return fmt.Errorf("call Dial failed with error: %+v", err)
