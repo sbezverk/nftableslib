@@ -16,5 +16,5 @@ script:
   - go test ./...
   - go test -c github.com/sbezverk/nftableslib
   - cd ./e2e
-  - GO111MODULE="on" go build -a -o ../bin/e2e main.go
+  - GO111MODULE="on" go build -a -o ../bin/e2e ./...
   - sudo ../bin/e2e
