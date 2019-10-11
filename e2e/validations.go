@@ -15,8 +15,9 @@ func tcpListener(c *net.TCPListener, stopch chan struct{}, resultch chan struct{
 	fmt.Printf("tcp listener listens for connections on: %s\n", c.Addr())
 	for {
 		c.SetDeadline(time.Now().Add(time.Second * 10))
-		_, err := c.Accept()
+		conn, err := c.Accept()
 		if err == nil {
+			fmt.Printf("Connection from: %s\n", conn.RemoteAddr())
 			resultch <- struct{}{}
 		}
 		select {
@@ -80,8 +81,6 @@ func tcpPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle
 	if err := netns.Set(ns[0]); err != nil {
 		return err
 	}
-	// for debugging
-	time.Sleep(time.Second * 10)
 	// Setting Dial timeout to 30 seconds, as default timeout is too long.
 	d := net.Dialer{Timeout: time.Second * 30}
 	cd, err := d.Dial(proto, daddr+":8888")
