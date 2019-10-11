@@ -80,6 +80,8 @@ func tcpPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle
 	if err := netns.Set(ns[0]); err != nil {
 		return err
 	}
+	// for debugging
+	time.Sleep(time.Second * 10)
 	// Setting Dial timeout to 30 seconds, as default timeout is too long.
 	d := net.Dialer{Timeout: time.Second * 30}
 	cd, err := d.Dial(proto, daddr+":8888")

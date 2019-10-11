@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -156,12 +157,16 @@ func main() {
 				os.Exit(1)
 			}
 		}
+		// for debugging
+		time.Sleep(time.Second * 10)
 		if tt.dstNSRules != nil {
 			if err := nftablesSet(ns[1], tt.version, tt.dstNSRules); err != nil {
 				fmt.Printf("test: \"%s\" failed to setup nftables table/chain/rule in a destination namespace with error: %+v\n", tt.name, err)
 				os.Exit(1)
 			}
 		}
+		// for debugging
+		time.Sleep(time.Second * 10)
 		if tt.validation != nil {
 			if err := tt.validation(tt.version, ns, ip); err != nil {
 				fmt.Printf("test: \"%s\" failed validation error: %+v\n", tt.name, err)
