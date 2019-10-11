@@ -14,29 +14,19 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {
-	ra, err := nftableslib.SetVerdict(key, chain...)
-	if err != nil {
-		fmt.Printf("failed to SetVerdict with error: %+v\n", err)
-	}
-	return ra
-}
-
-func setIPAddr(addr string) *nftableslib.IPAddr {
-	a, err := nftableslib.NewIPAddr(addr)
-	if err != nil {
-		fmt.Printf("error %+v return from NewIPAddr for address: %s\n", err, addr)
-	}
-	return a
+type testChain struct {
+	name string
+	attr *nftableslib.ChainAttributes
 }
 
 type nftablesTest struct {
 	name       string
 	version    nftables.TableFamily
-	srcNSRules map[nftableslib.ChainAttributes][]nftableslib.Rule
-	dstNSRules map[nftableslib.ChainAttributes][]nftableslib.Rule
+	srcNSRules map[testChain][]nftableslib.Rule
+	dstNSRules map[testChain][]nftableslib.Rule
 	saddr      string
 	daddr      string
+	validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
 }
 
 func init() {
@@ -45,41 +35,87 @@ func init() {
 
 func main() {
 	tests := []nftablesTest{
+		/*		{
+					name:    "IPV4 ICMP Drop",
+					version: nftables.TableFamilyIPv4,
+					dstNSRules: map[testChain][]nftableslib.Rule{
+						testChain{
+							"chain-1",
+							&nftableslib.ChainAttributes{
+								Type:     nftables.ChainTypeFilter,
+								Priority: 0,
+								Hook:     nftables.ChainHookInput,
+								Policy:   nftableslib.ChainPolicyAccept,
+							},
+						}: []nftableslib.Rule{
+							{
+								L3: &nftableslib.L3Rule{
+									Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
+									Dst: &nftableslib.IPAddrSpec{
+										List: []*nftableslib.IPAddr{setIPAddr("1.1.1.2")},
+									},
+								},
+								Action: setActionVerdict(nftableslib.NFT_DROP),
+							},
+						},
+					},
+					saddr:      "1.1.1.1/24",
+					daddr:      "1.1.1.2/24",
+					validation: icmpDropTestValidation,
+				},
+		*/
 		{
-			name:    "IPV4 ICMP Drop",
+			name:    "IPV4 Redirecting TCP port 8888 to 9999",
 			version: nftables.TableFamilyIPv4,
-			dstNSRules: map[nftableslib.ChainAttributes][]nftableslib.Rule{
-				nftableslib.ChainAttributes{
-					Type:     nftables.ChainTypeFilter,
-					Priority: 0,
-					Hook:     nftables.ChainHookInput,
-					Policy:   nftableslib.ChainPolicyAccept,
+			dstNSRules: map[testChain][]nftableslib.Rule{
+				testChain{
+					"chain-1",
+					nil,
+				}: []nftableslib.Rule{
+					{
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List: nftableslib.SetPortList([]int{8888}),
+							},
+						},
+						Action: setActionRedirect(9999, false),
+					},
+				},
+				testChain{
+					"chain-2",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookPrerouting,
+					},
 				}: []nftableslib.Rule{
 					{
 						L3: &nftableslib.L3Rule{
-							Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
-							Dst: &nftableslib.IPAddrSpec{
-								List: []*nftableslib.IPAddr{setIPAddr("1.1.1.2")},
-							},
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
 						},
-						Action: setActionVerdict(nftableslib.NFT_DROP),
+						Action: setActionVerdict(unix.NFT_JUMP, "chain-1"),
 					},
 				},
 			},
-			saddr: "1.1.1.1/24",
-			daddr: "1.1.1.2/24",
+			saddr:      "1.1.1.1/24",
+			daddr:      "1.1.1.2/24",
+			validation: tcpPortRedirectValidation,
 		},
 		/* Currently by some unknown reasons, IPv6 refuses to bind to namespace's interface
 		   This test will be re-enabled after the solution is found.
 		{
 			name:    "IPV6 ICMP Drop",
 			version: nftables.TableFamilyIPv6,
-			dstNSRules: map[nftableslib.ChainAttributes][]nftableslib.Rule{
-				nftableslib.ChainAttributes{
-					Type:     nftables.ChainTypeFilter,
-					Priority: 0,
-					Hook:     nftables.ChainHookInput,
-					Policy:   nftableslib.ChainPolicyAccept,
+			dstNSRules: map[testChain][]nftableslib.Rule{
+				testChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeFilter,
+						Priority: 0,
+						Hook:     nftables.ChainHookInput,
+						Policy:   nftableslib.ChainPolicyAccept,
+					},
 				}: []nftableslib.Rule{
 					{
 						L3: &nftableslib.L3Rule{
@@ -126,20 +162,24 @@ func main() {
 				os.Exit(1)
 			}
 		}
-		if err := setenv.TestICMP(ns[0], tt.version, ip[0], ip[1]); err == nil {
-			fmt.Printf("Connectivity test supposed to fail, but succeeded\n")
+		if tt.validation != nil {
+			if err := tt.validation(tt.version, ns, ip); err != nil {
+				fmt.Printf("test: \"%s\" failed validation error: %+v\n", tt.name, err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Printf("test: \"%s\" has no validation, test without validation is not allowed\n", tt.name)
 			os.Exit(1)
 		}
 	}
 	fmt.Printf("All tests succeeded...\n")
 }
 
-func nftablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[nftableslib.ChainAttributes][]nftableslib.Rule) error {
+func nftablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[testChain][]nftableslib.Rule) error {
 	conn := nftableslib.InitConn(int(ns))
 	ti := nftableslib.InitNFTables(conn)
 
 	tn := uuid.New().String()[:8]
-	fmt.Printf("Table name: %s\n", tn)
 	if err := ti.Tables().CreateImm(tn, version); err != nil {
 		return fmt.Errorf("failed to create table with error: %+v", err)
 	}
@@ -149,11 +189,10 @@ func nftablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[nf
 	}
 
 	for chain, rules := range nfrules {
-		cn := uuid.New().String()
-		if err := ci.Chains().CreateImm(cn, &chain); err != nil {
+		if err := ci.Chains().CreateImm(chain.name, chain.attr); err != nil {
 			return fmt.Errorf("failed to create chain with error: %+v", err)
 		}
-		ri, err := ci.Chains().Chain(cn)
+		ri, err := ci.Chains().Chain(chain.name)
 		if err != nil {
 			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
 		}
@@ -165,4 +204,31 @@ func nftablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[nf
 	}
 
 	return nil
+}
+
+func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetVerdict(key, chain...)
+	if err != nil {
+		fmt.Printf("failed to SetVerdict with error: %+v\n", err)
+		return nil
+	}
+	return ra
+}
+
+func setActionRedirect(port int, tproxy bool) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetRedirect(port, tproxy)
+	if err != nil {
+		fmt.Printf("failed to SetRedirect with error: %+v", err)
+		return nil
+	}
+	return ra
+}
+
+func setIPAddr(addr string) *nftableslib.IPAddr {
+	a, err := nftableslib.NewIPAddr(addr)
+	if err != nil {
+		fmt.Printf("error %+v return from NewIPAddr for address: %s\n", err, addr)
+		return nil
+	}
+	return a
 }

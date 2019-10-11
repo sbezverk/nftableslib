@@ -16,13 +16,7 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
-)
-
-const (
-	// ProtocolICMP defines offset in bytes for IPv4 ICMP
-	ProtocolICMP = 1
-	// ProtocolIPv6ICMP defines offset in bytes for IPv6 ICMP
-	ProtocolIPv6ICMP = 58
+	"golang.org/x/sys/unix"
 )
 
 // P2PTestEnv defines methods to interact with an instantiated p2p test environment
@@ -371,7 +365,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 	switch protocol {
 	case nftables.TableFamilyIPv4:
 		proto = "ip4:icmp"
-		protoStart = ProtocolICMP
+		protoStart = unix.IPPROTO_ICMP
 		wm = icmp.Message{
 			Type: ipv4.ICMPTypeEcho, Code: 0,
 		}
@@ -379,7 +373,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 		dst = daddr.IP.To4().String()
 	case nftables.TableFamilyIPv6:
 		proto = "ip6:ipv6-icmp"
-		protoStart = ProtocolIPv6ICMP
+		protoStart = unix.IPPROTO_ICMPV6
 		wm = icmp.Message{
 			Type: ipv6.ICMPTypeEchoRequest, Code: 0,
 		}
