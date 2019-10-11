@@ -10,5 +10,3 @@ require (
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f
 	golang.org/x/sys v0.0.0-20191008105621-543471e840be
 )
-
-replace github.com/sbezverk/nftableslib/e2e/setenv => ./setenv
