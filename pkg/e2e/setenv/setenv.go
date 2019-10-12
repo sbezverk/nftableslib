@@ -16,14 +16,25 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
+	"golang.org/x/sys/unix"
 )
 
-const (
-	// ProtocolICMP defines offset in bytes for IPv4 ICMP
-	ProtocolICMP = 1
-	// ProtocolIPv6ICMP defines offset in bytes for IPv6 ICMP
-	ProtocolIPv6ICMP = 58
-)
+// TestChain defines a key in NFTablesTes map
+type TestChain struct {
+	Name string
+	Attr *nftableslib.ChainAttributes
+}
+
+// NFTablesTest defines structure used for tests
+type NFTablesTest struct {
+	Name       string
+	Version    nftables.TableFamily
+	SrcNSRules map[TestChain][]nftableslib.Rule
+	DstNSRules map[TestChain][]nftableslib.Rule
+	Saddr      string
+	Daddr      string
+	Validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
+}
 
 // P2PTestEnv defines methods to interact with an instantiated p2p test environment
 type P2PTestEnv interface {
@@ -371,7 +382,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 	switch protocol {
 	case nftables.TableFamilyIPv4:
 		proto = "ip4:icmp"
-		protoStart = ProtocolICMP
+		protoStart = unix.IPPROTO_ICMP
 		wm = icmp.Message{
 			Type: ipv4.ICMPTypeEcho, Code: 0,
 		}
@@ -379,7 +390,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 		dst = daddr.IP.To4().String()
 	case nftables.TableFamilyIPv6:
 		proto = "ip6:ipv6-icmp"
-		protoStart = ProtocolIPv6ICMP
+		protoStart = unix.IPPROTO_ICMPV6
 		wm = icmp.Message{
 			Type: ipv6.ICMPTypeEchoRequest, Code: 0,
 		}
@@ -457,5 +468,37 @@ func printNSLink(ns netns.NsHandle) error {
 			fmt.Printf("- %s\n", addr.IPNet.IP.String())
 		}
 	}
+	return nil
+}
+
+// NFTablesSet sets up nftables rules in the namespace
+func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
+	conn := nftableslib.InitConn(int(ns))
+	ti := nftableslib.InitNFTables(conn)
+
+	tn := uuid.New().String()[:8]
+	if err := ti.Tables().CreateImm(tn, version); err != nil {
+		return fmt.Errorf("failed to create table with error: %+v", err)
+	}
+	ci, err := ti.Tables().Table(tn, version)
+	if err != nil {
+		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
+	}
+
+	for chain, rules := range nfrules {
+		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
+			return fmt.Errorf("failed to create chain with error: %+v", err)
+		}
+		ri, err := ci.Chains().Chain(chain.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+		}
+		for _, rule := range rules {
+			if _, err = ri.Rules().CreateImm(&rule); err != nil {
+				return fmt.Errorf("failed to create rule with error: %+v", err)
+			}
+		}
+	}
+
 	return nil
 }
