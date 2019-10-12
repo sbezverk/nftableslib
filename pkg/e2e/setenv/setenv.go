@@ -19,6 +19,23 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// TestChain defines a key in NFTablesTes map
+type TestChain struct {
+	Name string
+	Attr *nftableslib.ChainAttributes
+}
+
+// NFTablesTest defines structure used for tests
+type NFTablesTest struct {
+	Name       string
+	Version    nftables.TableFamily
+	SrcNSRules map[TestChain][]nftableslib.Rule
+	DstNSRules map[TestChain][]nftableslib.Rule
+	Saddr      string
+	Daddr      string
+	Validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
+}
+
 // P2PTestEnv defines methods to interact with an instantiated p2p test environment
 type P2PTestEnv interface {
 	Cleanup()
@@ -451,5 +468,37 @@ func printNSLink(ns netns.NsHandle) error {
 			fmt.Printf("- %s\n", addr.IPNet.IP.String())
 		}
 	}
+	return nil
+}
+
+// NFTablesSet sets up nftables rules in the namespace
+func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
+	conn := nftableslib.InitConn(int(ns))
+	ti := nftableslib.InitNFTables(conn)
+
+	tn := uuid.New().String()[:8]
+	if err := ti.Tables().CreateImm(tn, version); err != nil {
+		return fmt.Errorf("failed to create table with error: %+v", err)
+	}
+	ci, err := ti.Tables().Table(tn, version)
+	if err != nil {
+		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
+	}
+
+	for chain, rules := range nfrules {
+		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
+			return fmt.Errorf("failed to create chain with error: %+v", err)
+		}
+		ri, err := ci.Chains().Chain(chain.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+		}
+		for _, rule := range rules {
+			if _, err = ri.Rules().CreateImm(&rule); err != nil {
+				return fmt.Errorf("failed to create rule with error: %+v", err)
+			}
+		}
+	}
+
 	return nil
 }
