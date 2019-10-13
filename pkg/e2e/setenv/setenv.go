@@ -29,8 +29,8 @@ type TestChain struct {
 type NFTablesTest struct {
 	Name       string
 	Version    nftables.TableFamily
-	SrcNSRules map[TestChain][]nftableslib.Rule
-	DstNSRules map[TestChain][]nftableslib.Rule
+	SrcNFRules map[TestChain][]nftableslib.Rule
+	DstNFRules map[TestChain][]nftableslib.Rule
 	Saddr      string
 	Daddr      string
 	Validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
