@@ -29,8 +29,8 @@ type TestChain struct {
 type NFTablesTest struct {
 	Name       string
 	Version    nftables.TableFamily
-	SrcNSRules map[TestChain][]nftableslib.Rule
-	DstNSRules map[TestChain][]nftableslib.Rule
+	SrcNFRules map[TestChain][]nftableslib.Rule
+	DstNFRules map[TestChain][]nftableslib.Rule
 	Saddr      string
 	Daddr      string
 	Validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
@@ -319,17 +319,20 @@ func moveLinkIntoNS(link netlink.Link, ns netns.NsHandle) error {
 }
 
 func setVethIPAddr(e p2pEnv) error {
-	var addr1, addr2 *net.IPNet
+	var addr1, addr2, lo *net.IPNet
 	if e.ip1.IP.To4() != nil {
 		addr1 = &net.IPNet{IP: e.ip1.IP.To4(), Mask: net.CIDRMask(int(*e.ip1.Mask), 32)}
 		addr2 = &net.IPNet{IP: e.ip2.IP.To4(), Mask: net.CIDRMask(int(*e.ip2.Mask), 32)}
+		lo = &net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(32, 32)}
 	} else {
 		addr1 = &net.IPNet{IP: e.ip1.IP.To16(), Mask: net.CIDRMask(int(*e.ip1.Mask), 128)}
 		addr2 = &net.IPNet{IP: e.ip2.IP.To16(), Mask: net.CIDRMask(int(*e.ip2.Mask), 128)}
+		lo = &net.IPNet{IP: net.ParseIP("::1"), Mask: net.CIDRMask(128, 128)}
 	}
 
 	var vethAddr1 = &netlink.Addr{IPNet: addr1, Peer: addr2}
 	var vethAddr2 = &netlink.Addr{IPNet: addr2, Peer: addr1}
+	var loAddr = &netlink.Addr{IPNet: lo}
 
 	ns, err := netns.Get()
 	if err != nil {
@@ -347,6 +350,9 @@ func setVethIPAddr(e p2pEnv) error {
 	if err := netlink.AddrAdd(e.link1, vethAddr1); err != nil {
 		return fmt.Errorf("failure to assign IP to veth interface with error: %+v", err)
 	}
+	if err := setLoopbackIP(e.ns1, loAddr); err != nil {
+		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
+	}
 	if err := netns.Set(e.ns2); err != nil {
 		return fmt.Errorf("failed to switch to namespace %s with error: %+v", e.ns2, err)
 	}
@@ -356,9 +362,35 @@ func setVethIPAddr(e p2pEnv) error {
 	if err := netlink.AddrAdd(e.link2, vethAddr2); err != nil {
 		return fmt.Errorf("failure to assign IP to veth interface with error: %+v", err)
 	}
+	if err := setLoopbackIP(e.ns2, loAddr); err != nil {
+		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
+	}
+	// printNSLink(e.ns1)
+	// printNSLink(e.ns2)
 
-	printNSLink(e.ns1)
-	printNSLink(e.ns2)
+	return nil
+}
+
+func setLoopbackIP(ns netns.NsHandle, lo *netlink.Addr) error {
+	nsh, err := netlink.NewHandleAt(ns)
+	if err != nil {
+		return fmt.Errorf("failure to get namespace's handle with error: %+v", err)
+	}
+	links, _ := nsh.LinkList()
+	found := false
+	var link netlink.Link
+	for _, link = range links {
+		if link.Attrs().Name == "lo" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("loopback is not found")
+	}
+	if err := netlink.AddrAdd(link, lo); err != nil {
+		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
+	}
 
 	return nil
 }
@@ -400,8 +432,7 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 		return fmt.Errorf("unsupported table family %+v", protocol)
 	}
 	// Starting listener
-	fmt.Printf("Proto: %s Address: %s\n", proto, src)
-	c, err := icmp.ListenPacket(proto, src)
+	c, err := icmpListenPacket(proto, src)
 	if err != nil {
 		return fmt.Errorf("call ListenPacket failed with error: %+v", err)
 	}
@@ -416,31 +447,63 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 		return err
 	}
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
+		fmt.Printf("")
 		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(dst)}); err != nil {
 			return err
 		}
-		rb := make([]byte, 1500)
-		c.SetReadDeadline(time.Now().Add(time.Second * 2))
-		n, peer, err := c.ReadFrom(rb)
-		if err != nil {
+		if err := waitForICMPReply(c, protoStart); err != nil {
 			return err
-		}
-		rm, err := icmp.ParseMessage(protoStart, rb[:n])
-		if err != nil {
-			return err
-		}
-		switch rm.Type {
-		case ipv4.ICMPTypeEchoReply:
-		case ipv6.ICMPTypeEchoReply:
-		default:
-			return fmt.Errorf("Unexpected reply during connectivity test from peer: %s", peer.String())
 		}
 	}
 
 	return nil
 }
 
+func icmpListenPacket(proto string, src string) (*icmp.PacketConn, error) {
+	ticker := time.NewTicker(time.Second * 1)
+	timeout := time.NewTimer(time.Second * 10)
+	for {
+		c, err := icmp.ListenPacket(proto, src)
+		if err == nil {
+			return c, nil
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-timeout.C:
+			return nil, fmt.Errorf("failure to open icmp socket with error: %+v", err)
+		}
+	}
+}
+
+func waitForICMPReply(c *icmp.PacketConn, protoStart int) error {
+	ticker := time.NewTicker(time.Second * 1)
+	timeout := time.NewTimer(time.Second * 2)
+	for {
+		rb := make([]byte, 1500)
+		c.SetReadDeadline(time.Now().Add(time.Second * 1))
+		n, _, err := c.ReadFrom(rb)
+		if err == nil {
+			rm, err := icmp.ParseMessage(protoStart, rb[:n])
+			if err != nil {
+				return err
+			}
+			switch rm.Type {
+			case ipv4.ICMPTypeEchoReply:
+				return nil
+			case ipv6.ICMPTypeEchoReply:
+				return nil
+			}
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-timeout.C:
+			return fmt.Errorf("timeout to receive ICMP reply")
+		}
+	}
+}
 func printNSLink(ns netns.NsHandle) error {
 	org, err := netns.Get()
 	if err != nil {

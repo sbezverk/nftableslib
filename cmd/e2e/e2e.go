@@ -22,7 +22,7 @@ func main() {
 		{
 			Name:    "IPV4 ICMP Drop",
 			Version: nftables.TableFamilyIPv4,
-			DstNSRules: map[setenv.TestChain][]nftableslib.Rule{
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
 					"chain-1",
 					&nftableslib.ChainAttributes{
@@ -50,7 +50,7 @@ func main() {
 		{
 			Name:    "IPV4 Redirecting TCP port 8888 to 9999",
 			Version: nftables.TableFamilyIPv4,
-			DstNSRules: map[setenv.TestChain][]nftableslib.Rule{
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
 					"chain-1",
 					nil,
@@ -97,13 +97,87 @@ func main() {
 			Daddr:      "1.1.1.2/24",
 			Validation: validations.TCPPortRedirectValidation,
 		},
-		/* Currently by some unknown reasons, IPv6 refuses to bind to namespace's interface
-		   This test will be re-enabled after the solution is found.
 		{
-			name:    "IPV6 ICMP Drop",
-			version: nftables.TableFamilyIPv6,
-			dstNSRules: map[testChain][]nftableslib.Rule{
-				testChain{
+			Name:    "IPV6 Redirecting TCP port 8888 to 9999",
+			Version: nftables.TableFamilyIPv6,
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
+					"chain-1",
+					nil,
+				}: []nftableslib.Rule{
+					{
+						// This rule will block ALL TCP traffic with the exception of traffic destined to port 8888
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List:  nftableslib.SetPortList([]int{8888}),
+								RelOp: nftableslib.NEQ,
+							},
+						},
+						Action: setActionVerdict(nftableslib.NFT_DROP),
+					},
+					{
+						// Allowed TCP traffic to port 8888 will be redirected to port 9999
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List: nftableslib.SetPortList([]int{8888}),
+							},
+						},
+						Action: setActionRedirect(9999, false),
+					},
+				},
+				setenv.TestChain{
+					"chain-2",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookPrerouting,
+					},
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+						},
+						Action: setActionVerdict(unix.NFT_JUMP, "chain-1"),
+					},
+				},
+			},
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
+			Validation: validations.TCPPortRedirectValidation,
+		},
+		/*		{
+					Name:    "IPV4 SNAT",
+					Version: nftables.TableFamilyIPv4,
+					SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+						setenv.TestChain{
+							"chain-1",
+							&nftableslib.ChainAttributes{
+								Type:     nftables.ChainTypeNAT,
+								Priority: 0,
+								Hook:     nftables.ChainHookPostrouting,
+							},
+						}: []nftableslib.Rule{
+							{
+								L3: &nftableslib.L3Rule{
+									Protocol: nftableslib.L3Protocol(unix.IPPROTO_IP),
+								},
+								Action: setSNAT(&nftableslib.NATAttributes{
+									L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
+								})},
+						},
+					},
+					Saddr:      "1.1.1.1/24",
+					Daddr:      "1.1.1.2/24",
+					Validation: validations.IPv4SNATValidation,
+				},
+		*/
+		{
+			Name:    "IPV6 ICMP Drop",
+			Version: nftables.TableFamilyIPv6,
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
 					"chain-1",
 					&nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeFilter,
@@ -123,10 +197,10 @@ func main() {
 					},
 				},
 			},
-			saddr: "2001:1::1",
-			daddr: "2001:1::2",
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
+			Validation: validations.ICMPDropTestValidation,
 		},
-		*/
 	}
 
 	for _, tt := range tests {
@@ -141,19 +215,19 @@ func main() {
 		ns := t.GetNamespace()
 		ip := t.GetIPs()
 
-		// Initial connectivity test before applying any nftables rules are applied
+		// Initial connectivity test before applying any nftables rules
 		if err := setenv.TestICMP(ns[0], tt.Version, ip[0], ip[1]); err != nil {
 			fmt.Printf("--- Test: \"%s\" failed during initial connectivity test with error: %+v\n", tt.Name, err)
 			os.Exit(1)
 		}
-		if tt.SrcNSRules != nil {
-			if err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNSRules); err != nil {
+		if tt.SrcNFRules != nil {
+			if err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a source namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
 		}
-		if tt.DstNSRules != nil {
-			if err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNSRules); err != nil {
+		if tt.DstNFRules != nil {
+			if err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a destination namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
@@ -197,4 +271,13 @@ func setIPAddr(addr string) *nftableslib.IPAddr {
 		return nil
 	}
 	return a
+}
+
+func setSNAT(attrs *nftableslib.NATAttributes) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetSNAT(attrs)
+	if err != nil {
+		fmt.Printf("error %+v return from SetSNAT call\n", err)
+		return nil
+	}
+	return ra
 }
