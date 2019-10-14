@@ -99,7 +99,7 @@ func dialTCP(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IP
 	return nil
 }
 
-// TCPPortRedirectValidation validation function for test: "IPV4 Redirecting TCP port 8888 to 9999"
+// TCPPortRedirectValidation validation function for test: "IPV4 and IPV6 Redirecting TCP port 8888 to 9999"
 func TCPPortRedirectValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
 	org, err := netns.Get()
 	if err != nil {
