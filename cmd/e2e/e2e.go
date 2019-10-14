@@ -98,30 +98,81 @@ func main() {
 			Validation: validations.TCPPortRedirectValidation,
 		},
 		{
-			Name:    "IPV4 SNAT",
-			Version: nftables.TableFamilyIPv4,
-			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+			Name:    "IPV6 Redirecting TCP port 8888 to 9999",
+			Version: nftables.TableFamilyIPv6,
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
 					"chain-1",
+					nil,
+				}: []nftableslib.Rule{
+					{
+						// This rule will block ALL TCP traffic with the exception of traffic destined to port 8888
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List:  nftableslib.SetPortList([]int{8888}),
+								RelOp: nftableslib.NEQ,
+							},
+						},
+						Action: setActionVerdict(nftableslib.NFT_DROP),
+					},
+					{
+						// Allowed TCP traffic to port 8888 will be redirected to port 9999
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List: nftableslib.SetPortList([]int{8888}),
+							},
+						},
+						Action: setActionRedirect(9999, false),
+					},
+				},
+				setenv.TestChain{
+					"chain-2",
 					&nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
 						Priority: 0,
-						Hook:     nftables.ChainHookPostrouting,
+						Hook:     nftables.ChainHookPrerouting,
 					},
 				}: []nftableslib.Rule{
 					{
 						L3: &nftableslib.L3Rule{
-							Protocol: nftableslib.L3Protocol(unix.IPPROTO_IP),
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
 						},
-						Action: setSNAT(&nftableslib.NATAttributes{
-							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
-						})},
+						Action: setActionVerdict(unix.NFT_JUMP, "chain-1"),
+					},
 				},
 			},
-			Saddr:      "1.1.1.1/24",
-			Daddr:      "1.1.1.2/24",
-			Validation: validations.IPv4SNATValidation,
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
+			Validation: validations.TCPPortRedirectValidation,
 		},
+		/*		{
+					Name:    "IPV4 SNAT",
+					Version: nftables.TableFamilyIPv4,
+					SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+						setenv.TestChain{
+							"chain-1",
+							&nftableslib.ChainAttributes{
+								Type:     nftables.ChainTypeNAT,
+								Priority: 0,
+								Hook:     nftables.ChainHookPostrouting,
+							},
+						}: []nftableslib.Rule{
+							{
+								L3: &nftableslib.L3Rule{
+									Protocol: nftableslib.L3Protocol(unix.IPPROTO_IP),
+								},
+								Action: setSNAT(&nftableslib.NATAttributes{
+									L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
+								})},
+						},
+					},
+					Saddr:      "1.1.1.1/24",
+					Daddr:      "1.1.1.2/24",
+					Validation: validations.IPv4SNATValidation,
+				},
+		*/
 		{
 			Name:    "IPV6 ICMP Drop",
 			Version: nftables.TableFamilyIPv6,
@@ -146,8 +197,8 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "2001:1::1",
-			Daddr:      "2001:1::2",
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
 			Validation: validations.ICMPDropTestValidation,
 		},
 	}

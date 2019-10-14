@@ -188,8 +188,8 @@ func IPv4SNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []
 		<-stopch
 	}()
 	// Attempting to dial Listener's IP and Good port
-	// laddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:46428")
-	if err := dialTCP(version, ns[0], ip[1], "9999"); err != nil {
+	laddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err := dialTCP(version, ns[0], ip[1], "9999", laddr); err != nil {
 		return err
 	}
 	// Get results
