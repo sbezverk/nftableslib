@@ -447,7 +447,8 @@ func TestICMP(sourceNS netns.NsHandle, protocol nftables.TableFamily, saddr, dad
 		return err
 	}
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
+		fmt.Printf("")
 		if _, err := c.WriteTo(wb, &net.IPAddr{IP: net.ParseIP(dst)}); err != nil {
 			return err
 		}
@@ -478,10 +479,10 @@ func icmpListenPacket(proto string, src string) (*icmp.PacketConn, error) {
 
 func waitForICMPReply(c *icmp.PacketConn, protoStart int) error {
 	ticker := time.NewTicker(time.Second * 1)
-	timeout := time.NewTimer(time.Second * 10)
+	timeout := time.NewTimer(time.Second * 2)
 	for {
 		rb := make([]byte, 1500)
-		c.SetReadDeadline(time.Now().Add(time.Second * 2))
+		c.SetReadDeadline(time.Now().Add(time.Second * 1))
 		n, _, err := c.ReadFrom(rb)
 		if err == nil {
 			rm, err := icmp.ParseMessage(protoStart, rb[:n])
@@ -494,12 +495,12 @@ func waitForICMPReply(c *icmp.PacketConn, protoStart int) error {
 			case ipv6.ICMPTypeEchoReply:
 				return nil
 			}
-			select {
-			case <-ticker.C:
-				continue
-			case <-timeout.C:
-				return fmt.Errorf("timeout to receive ICMP reply")
-			}
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-timeout.C:
+			return fmt.Errorf("timeout to receive ICMP reply")
 		}
 	}
 }

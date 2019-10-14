@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/sbezverk/nftableslib"
-	"github.com/sbezverk/nftableslib/e2e/setenv"
+	"github.com/sbezverk/nftableslib/pkg/e2e/setenv"
 	"github.com/vishvananda/netns"
 )
 
