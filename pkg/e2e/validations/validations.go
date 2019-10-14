@@ -21,7 +21,6 @@ func tcpListener(c *net.TCPListener, stopch chan struct{}, resultch chan resultM
 		c.SetDeadline(time.Now().Add(time.Second * 10))
 		conn, err := c.Accept()
 		if err == nil {
-			// fmt.Printf("Connection from: %s\n", conn.RemoteAddr())
 			resultch <- resultMsg{
 				addr: conn.RemoteAddr(),
 			}
@@ -71,7 +70,7 @@ func setupTCPListener(version nftables.TableFamily, ns netns.NsHandle, ip *nftab
 	return cl, nil
 }
 
-func dialTCP(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IPAddr, port string) error {
+func dialTCP(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IPAddr, port string, laddr ...net.Addr) error {
 	// Switching to the source namespace to make a call
 	if err := netns.Set(ns); err != nil {
 		return err
@@ -89,6 +88,9 @@ func dialTCP(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IP
 	}
 	// Setting Dial timeout to 30 seconds, as default timeout is too long.
 	d := net.Dialer{Timeout: time.Second * 10}
+	if laddr != nil {
+		d.LocalAddr = laddr[0]
+	}
 	cd, err := d.Dial(proto, daddr+":"+port)
 	if err != nil {
 		return fmt.Errorf("call Dial failed with error: %+v", err)
@@ -162,7 +164,38 @@ func ICMPDropTestValidation(version nftables.TableFamily, ns []netns.NsHandle, i
 	return nil
 }
 
+// IPv4SNATValidation validation function for test: "IPV4 SNAT"
 func IPv4SNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
+	org, err := netns.Get()
+	if err != nil {
+		return err
+	}
+
+	defer netns.Set(org)
+	// stop channel for shutting down the listener
+	stopch := make(chan struct{})
+	// packet channel to transfer received by the listener packets back to the sender for analysis
+	resultch := make(chan resultMsg)
+	cl, err := setupTCPListener(version, ns[1], ip[1], "9999", stopch, resultch)
+	if err != nil {
+		return err
+	}
+	// Closing TCP Listener
+	defer cl.Close()
+	// Informing TCP Listener to shut down
+	defer func() {
+		stopch <- struct{}{}
+		<-stopch
+	}()
+	// Attempting to dial Listener's IP and Good port
+	// laddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:46428")
+	if err := dialTCP(version, ns[0], ip[1], "9999"); err != nil {
+		return err
+	}
+	// Get results
+	if err := getResult(resultch); err != nil {
+		return fmt.Errorf("getPacket failed with error: %+v", err)
+	}
 
 	return nil
 }

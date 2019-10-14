@@ -122,14 +122,11 @@ func main() {
 			Daddr:      "1.1.1.2/24",
 			Validation: validations.IPv4SNATValidation,
 		},
-
-		/* Currently by some unknown reasons, IPv6 refuses to bind to namespace's interface
-		   This test will be re-enabled after the solution is found.
 		{
-			name:    "IPV6 ICMP Drop",
-			version: nftables.TableFamilyIPv6,
-			dstNSRules: map[testChain][]nftableslib.Rule{
-				testChain{
+			Name:    "IPV6 ICMP Drop",
+			Version: nftables.TableFamilyIPv6,
+			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
 					"chain-1",
 					&nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeFilter,
@@ -149,10 +146,10 @@ func main() {
 					},
 				},
 			},
-			saddr: "2001:1::1",
-			daddr: "2001:1::2",
+			Saddr:      "2001:1::1",
+			Daddr:      "2001:1::2",
+			Validation: validations.ICMPDropTestValidation,
 		},
-		*/
 	}
 
 	for _, tt := range tests {
