@@ -422,6 +422,28 @@ func marshalExpression(exp expr.Any) ([]byte, error) {
 		b = append(b, '}')
 		return b, nil
 	}
+	if e, ok := exp.(*expr.NAT); ok {
+		b = append(b, []byte("{\"Type\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Type))...)
+		b = append(b, []byte(",\"Family\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.Family))...)
+		b = append(b, []byte(",\"RegAddrMin\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegAddrMin))...)
+		b = append(b, []byte(",\"RegAddrMax\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegAddrMax))...)
+		b = append(b, []byte(",\"RegProtoMin\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegProtoMin))...)
+		b = append(b, []byte(",\"RegProtoMax\":")...)
+		b = append(b, []byte(fmt.Sprintf("%d", e.RegProtoMax))...)
+		b = append(b, []byte(",\"Random\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%t\"", e.Random))...)
+		b = append(b, []byte(",\"FullyRandom\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%t\"", e.FullyRandom))...)
+		b = append(b, []byte(",\"Persistent\":")...)
+		b = append(b, []byte(fmt.Sprintf("\"%t\"", e.Persistent))...)
+		b = append(b, '}')
+		return b, nil
+	}
 	/*
 		TODO: (sbezverk)
 			expr.Masq:
