@@ -147,32 +147,58 @@ func main() {
 			Daddr:      "2001:1::2/64",
 			Validation: validations.TCPPortRedirectValidation,
 		},
-		/*		{
-					Name:    "IPV4 SNAT",
-					Version: nftables.TableFamilyIPv4,
-					SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
-						setenv.TestChain{
-							"chain-1",
-							&nftableslib.ChainAttributes{
-								Type:     nftables.ChainTypeNAT,
-								Priority: 0,
-								Hook:     nftables.ChainHookPostrouting,
-							},
-						}: []nftableslib.Rule{
-							{
-								L3: &nftableslib.L3Rule{
-									Protocol: nftableslib.L3Protocol(unix.IPPROTO_IP),
-								},
-								Action: setSNAT(&nftableslib.NATAttributes{
-									L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
-								})},
-						},
+		{
+			Name:    "IPV4 SNAT",
+			Version: nftables.TableFamilyIPv4,
+			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookInput,
 					},
-					Saddr:      "1.1.1.1/24",
-					Daddr:      "1.1.1.2/24",
-					Validation: validations.IPv4SNATValidation,
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+						},
+						Action: setSNAT(&nftableslib.NATAttributes{
+							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
+							Port:   [2]uint16{7777},
+						})},
 				},
-		*/
+			},
+			Saddr:      "1.1.1.1/24",
+			Daddr:      "1.1.1.2/24",
+			Validation: validations.IPv4SNATValidation,
+		},
+		{
+			Name:    "IPV6 SNAT",
+			Version: nftables.TableFamilyIPv6,
+			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookInput,
+					},
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+						},
+						Action: setSNAT(&nftableslib.NATAttributes{
+							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("2001:1234::1")},
+							Port:   [2]uint16{7777},
+						})},
+				},
+			},
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
+			Validation: validations.IPv4SNATValidation,
+		},
 		{
 			Name:    "IPV6 ICMP Drop",
 			Version: nftables.TableFamilyIPv6,

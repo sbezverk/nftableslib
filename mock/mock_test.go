@@ -45,6 +45,14 @@ func setLog(key int, value []byte) *nftableslib.Log {
 	return log
 }
 
+func setSNAT(t *testing.T, attrs *nftableslib.NATAttributes) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetSNAT(attrs)
+	if err != nil {
+		t.Fatalf("error %+v return from SetSNAT call\n", err)
+		return nil
+	}
+	return ra
+}
 func TestMock(t *testing.T) {
 	port1 := 8080
 	port2 := 9090
@@ -210,6 +218,18 @@ func TestMock(t *testing.T) {
 				},
 				Action: setActionVerdict(t, unix.NFT_JUMP, "fake-chain-1"),
 			},
+			success: true,
+		},
+		{
+			name: "IPv4 Range, destination, no exclusion",
+			rule: nftableslib.Rule{
+				L3: &nftableslib.L3Rule{
+					Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+				},
+				Action: setSNAT(t, &nftableslib.NATAttributes{
+					L3Addr: [2]*nftableslib.IPAddr{setIPAddr(t, "5.5.5.5")},
+					Port:   [2]uint16{7777},
+				})},
 			success: true,
 		},
 	}
