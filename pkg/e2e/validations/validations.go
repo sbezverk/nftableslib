@@ -96,6 +96,7 @@ func dialTCP(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IP
 		return fmt.Errorf("call Dial failed with error: %+v", err)
 	}
 	defer cd.Close()
+
 	return nil
 }
 
@@ -188,7 +189,14 @@ func IPv4SNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []
 		<-stopch
 	}()
 	// Attempting to dial Listener's IP and Good port
-	laddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	var laddr *net.TCPAddr
+	switch version {
+	case nftables.TableFamilyIPv4:
+		laddr, _ = net.ResolveTCPAddr("ip4:tcp", "127.0.0.1:0")
+	case nftables.TableFamilyIPv6:
+		laddr, _ = net.ResolveTCPAddr("ip6:tcp", "[::1]:0")
+	}
+
 	if err := dialTCP(version, ns[0], ip[1], "9999", laddr); err != nil {
 		return err
 	}

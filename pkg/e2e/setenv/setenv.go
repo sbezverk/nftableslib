@@ -504,6 +504,7 @@ func waitForICMPReply(c *icmp.PacketConn, protoStart int) error {
 		}
 	}
 }
+
 func printNSLink(ns netns.NsHandle) error {
 	org, err := netns.Get()
 	if err != nil {
@@ -562,6 +563,8 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[Te
 			}
 		}
 	}
+	b, _ := ti.Tables().Dump()
+	fmt.Printf("Resulting nftables rule: %s\n", string(b))
 
 	return nil
 }
