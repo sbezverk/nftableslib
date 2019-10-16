@@ -156,7 +156,7 @@ func main() {
 					&nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
 						Priority: 0,
-						Hook:     nftables.ChainHookInput,
+						Hook:     nftables.ChainHookPostrouting,
 					},
 				}: []nftableslib.Rule{
 					{
@@ -166,12 +166,14 @@ func main() {
 						Action: setSNAT(&nftableslib.NATAttributes{
 							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
 							Port:   [2]uint16{7777},
-						})},
+						}),
+					},
 				},
 			},
-			Saddr:      "1.1.1.1/24",
-			Daddr:      "1.1.1.2/24",
-			Validation: validations.IPv4SNATValidation,
+			Saddr:        "1.1.1.1/24",
+			Daddr:        "1.1.1.2/24",
+			Validation:   validations.IPv4SNATValidation,
+			DebugNFRules: false,
 		},
 		{
 			Name:    "IPV6 SNAT",
@@ -182,7 +184,7 @@ func main() {
 					&nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
 						Priority: 0,
-						Hook:     nftables.ChainHookInput,
+						Hook:     nftables.ChainHookPostrouting,
 					},
 				}: []nftableslib.Rule{
 					{
@@ -197,7 +199,7 @@ func main() {
 			},
 			Saddr:      "2001:1::1/64",
 			Daddr:      "2001:1::2/64",
-			Validation: validations.IPv4SNATValidation,
+			Validation: validations.IPv6SNATValidation,
 		},
 		{
 			Name:    "IPV6 ICMP Drop",
@@ -247,13 +249,13 @@ func main() {
 			os.Exit(1)
 		}
 		if tt.SrcNFRules != nil {
-			if err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNFRules); err != nil {
+			if err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNFRules, tt.DebugNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a source namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
 		}
 		if tt.DstNFRules != nil {
-			if err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNFRules); err != nil {
+			if err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNFRules, tt.DebugNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a destination namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
@@ -301,6 +303,15 @@ func setIPAddr(addr string) *nftableslib.IPAddr {
 
 func setSNAT(attrs *nftableslib.NATAttributes) *nftableslib.RuleAction {
 	ra, err := nftableslib.SetSNAT(attrs)
+	if err != nil {
+		fmt.Printf("error %+v return from SetSNAT call\n", err)
+		return nil
+	}
+	return ra
+}
+
+func setDNAT(attrs *nftableslib.NATAttributes) *nftableslib.RuleAction {
+	ra, err := nftableslib.SetDNAT(attrs)
 	if err != nil {
 		fmt.Printf("error %+v return from SetSNAT call\n", err)
 		return nil

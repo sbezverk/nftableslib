@@ -27,13 +27,14 @@ type TestChain struct {
 
 // NFTablesTest defines structure used for tests
 type NFTablesTest struct {
-	Name       string
-	Version    nftables.TableFamily
-	SrcNFRules map[TestChain][]nftableslib.Rule
-	DstNFRules map[TestChain][]nftableslib.Rule
-	Saddr      string
-	Daddr      string
-	Validation func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
+	Name         string
+	Version      nftables.TableFamily
+	SrcNFRules   map[TestChain][]nftableslib.Rule
+	DstNFRules   map[TestChain][]nftableslib.Rule
+	Saddr        string
+	Daddr        string
+	Validation   func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
+	DebugNFRules bool
 }
 
 // P2PTestEnv defines methods to interact with an instantiated p2p test environment
@@ -353,6 +354,9 @@ func setVethIPAddr(e p2pEnv) error {
 	if err := setLoopbackIP(e.ns1, loAddr); err != nil {
 		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
 	}
+	if err := setDefaultRoute(e.link1, addr2); err != nil {
+		return fmt.Errorf("failure to add default route with error: %+v", err)
+	}
 	if err := netns.Set(e.ns2); err != nil {
 		return fmt.Errorf("failed to switch to namespace %s with error: %+v", e.ns2, err)
 	}
@@ -365,9 +369,30 @@ func setVethIPAddr(e p2pEnv) error {
 	if err := setLoopbackIP(e.ns2, loAddr); err != nil {
 		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
 	}
+	if err := setDefaultRoute(e.link2, addr1); err != nil {
+		return fmt.Errorf("failure to add default route with error: %+v", err)
+	}
 	// printNSLink(e.ns1)
 	// printNSLink(e.ns2)
 
+	return nil
+}
+
+func setDefaultRoute(link netlink.Link, addr *net.IPNet) error {
+	defaultRoute := "0.0.0.0"
+	defaultMask := net.CIDRMask(0, 32)
+	if addr.IP.To4() == nil {
+		defaultRoute = "::"
+		defaultMask = net.CIDRMask(0, 128)
+	}
+	route := netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Dst:       &net.IPNet{IP: net.ParseIP(defaultRoute), Mask: defaultMask},
+		Gw:        addr.IP,
+	}
+	if err := netlink.RouteAdd(&route); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -388,9 +413,10 @@ func setLoopbackIP(ns netns.NsHandle, lo *netlink.Addr) error {
 	if !found {
 		return fmt.Errorf("loopback is not found")
 	}
-	if err := netlink.AddrAdd(link, lo); err != nil {
-		return fmt.Errorf("failure to assign IP to loopback interface with error: %+v", err)
+	if err := netlink.LinkSetUp(link); err != nil {
+		return fmt.Errorf("failure to bring loopback interface UP with error: %+v", err)
 	}
+	netlink.AddrAdd(link, lo)
 
 	return nil
 }
@@ -536,11 +562,11 @@ func printNSLink(ns netns.NsHandle) error {
 }
 
 // NFTablesSet sets up nftables rules in the namespace
-func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
+func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule, debug bool) error {
 	conn := nftableslib.InitConn(int(ns))
 	ti := nftableslib.InitNFTables(conn)
 
-	tn := uuid.New().String()[:8]
+	tn := "t" + uuid.New().String()[:8]
 	if err := ti.Tables().CreateImm(tn, version); err != nil {
 		return fmt.Errorf("failed to create table with error: %+v", err)
 	}
@@ -563,8 +589,10 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[Te
 			}
 		}
 	}
-	b, _ := ti.Tables().Dump()
-	fmt.Printf("Resulting nftables rule: %s\n", string(b))
+	if debug {
+		b, _ := ti.Tables().Dump()
+		fmt.Printf("Resulting nftables rule: %s\n", string(b))
+	}
 
 	return nil
 }
