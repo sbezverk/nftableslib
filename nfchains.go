@@ -99,13 +99,14 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 			return err
 		}
 		baseChain = true
+		defaultPolicy := nftables.ChainPolicyAccept
 		c = nfc.conn.AddChain(&nftables.Chain{
 			Name:     name,
 			Hooknum:  attributes.Hook,
 			Priority: attributes.Priority,
 			Table:    nfc.table,
 			Type:     attributes.Type,
-			Policy:   uint32(attributes.Policy),
+			Policy:   &defaultPolicy,
 		})
 	} else {
 		baseChain = false
