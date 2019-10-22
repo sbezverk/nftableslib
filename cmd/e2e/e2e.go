@@ -148,7 +148,7 @@ func main() {
 			Validation: validations.TCPPortRedirectValidation,
 		},
 		{
-			Name:    "IPV4 SNAT",
+			Name:    "IPV4 TCP SNAT",
 			Version: nftables.TableFamilyIPv4,
 			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
@@ -172,11 +172,11 @@ func main() {
 			},
 			Saddr:        "1.1.1.1/24",
 			Daddr:        "1.1.1.2/24",
-			Validation:   validations.IPv4SNATValidation,
+			Validation:   validations.IPv4TCPSNATValidation,
 			DebugNFRules: false,
 		},
 		{
-			Name:    "IPV6 SNAT",
+			Name:    "IPV6 TCP SNAT",
 			Version: nftables.TableFamilyIPv6,
 			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
@@ -199,7 +199,35 @@ func main() {
 			},
 			Saddr:      "2001:1::1/64",
 			Daddr:      "2001:1::2/64",
-			Validation: validations.IPv6SNATValidation,
+			Validation: validations.IPv6TCPSNATValidation,
+		},
+		{
+			Name:    "IPV4 UDP SNAT",
+			Version: nftables.TableFamilyIPv4,
+			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookPostrouting,
+					},
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_UDP),
+						},
+						Action: setSNAT(&nftableslib.NATAttributes{
+							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
+							Port:   [2]uint16{7777},
+						}),
+					},
+				},
+			},
+			Saddr:        "1.1.1.1/24",
+			Daddr:        "1.1.1.2/24",
+			Validation:   validations.IPv4UDPSNATValidation,
+			DebugNFRules: false,
 		},
 		{
 			Name:    "IPV6 ICMP Drop",
