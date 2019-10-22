@@ -230,6 +230,32 @@ func main() {
 			DebugNFRules: false,
 		},
 		{
+			Name:    "IPV6 UDO SNAT",
+			Version: nftables.TableFamilyIPv6,
+			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
+				setenv.TestChain{
+					"chain-1",
+					&nftableslib.ChainAttributes{
+						Type:     nftables.ChainTypeNAT,
+						Priority: 0,
+						Hook:     nftables.ChainHookPostrouting,
+					},
+				}: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_UDP),
+						},
+						Action: setSNAT(&nftableslib.NATAttributes{
+							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("2001:1234::1")},
+							Port:   [2]uint16{7777},
+						})},
+				},
+			},
+			Saddr:      "2001:1::1/64",
+			Daddr:      "2001:1::2/64",
+			Validation: validations.IPv6UDPSNATValidation,
+		},
+		{
 			Name:    "IPV6 ICMP Drop",
 			Version: nftables.TableFamilyIPv6,
 			DstNFRules: map[setenv.TestChain][]nftableslib.Rule{

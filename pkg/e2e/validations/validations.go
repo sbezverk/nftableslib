@@ -381,3 +381,15 @@ func IPv6TCPSNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip
 	}
 	return nil
 }
+
+// IPv6TCPSNATValidation validation function for test: "IPV6 TCP SNAT"
+func IPv6UDPSNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip []*nftableslib.IPAddr) error {
+	addr, err := getPacketFromDestination(version, ns, ip, unix.IPPROTO_UDP, "9999", "9999")
+	if err != nil {
+		return err
+	}
+	if addr.String() != "2001:1234::1" {
+		return fmt.Errorf("Unexpected source address: %s, expected address: 2001:1234::1", addr.String())
+	}
+	return nil
+}
