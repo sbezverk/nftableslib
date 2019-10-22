@@ -25,12 +25,10 @@ func ipPacketListener(port int, proto int, pc *net.IPConn, stopch chan struct{},
 	p := make([]byte, 1500)
 	for {
 		p = p[:]
-		pc.SetReadDeadline(time.Now().Add(time.Second * 2))
+		pc.SetReadDeadline(time.Now().Add(time.Second * 20))
 		n, addr, err := pc.ReadFrom(p)
 		if err == nil {
 			// If no error, shipping addr and packet content over packetch
-			fmt.Printf("Got packet from address: %+v\n", addr)
-
 			switch proto {
 			case unix.IPPROTO_TCP:
 				// Decode a packet
@@ -39,7 +37,6 @@ func ipPacketListener(port int, proto int, pc *net.IPConn, stopch chan struct{},
 				if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 					// Get actual TCP data from this layer
 					tcp, _ := tcpLayer.(*layers.TCP)
-					fmt.Printf("From src port %d to dst port %d\n", tcp.SrcPort, tcp.DstPort)
 					if layers.TCPPort(port) == tcp.DstPort {
 						resultch <- resultMsg{
 							addr: addr,
@@ -53,7 +50,6 @@ func ipPacketListener(port int, proto int, pc *net.IPConn, stopch chan struct{},
 				if udpLayer := packet.Layer(layers.LayerTypeUDP); udpLayer != nil {
 					// Get actual UDP data from this layer
 					udp, _ := udpLayer.(*layers.UDP)
-					fmt.Printf("From src port %d to dst port %d\n", udp.SrcPort, udp.DstPort)
 					if layers.UDPPort(port) == udp.DstPort {
 						resultch <- resultMsg{
 							addr: addr,
@@ -196,7 +192,6 @@ func setupIPListener(version nftables.TableFamily, ns netns.NsHandle, ip *nftabl
 		laddr = net.IPAddr{IP: udpAddr.IP}
 
 	}
-
 	pc, err := net.ListenIP(netStr, &laddr)
 	if err != nil {
 		return nil, fmt.Errorf("call to ListenPacket failed with error: %+v", err)
@@ -236,7 +231,11 @@ func dial(version nftables.TableFamily, ns netns.NsHandle, ip *nftableslib.IPAdd
 		return fmt.Errorf("call Dial failed with error: %+v", err)
 	}
 	defer cd.Close()
-
+	// Since Dial for UDP does not send any Data, as opposed to Dail for TCP sending SYN packet
+	// sending a small packet out.
+	if proto == unix.IPPROTO_UDP {
+		cd.Write([]byte("UDP test"))
+	}
 	return nil
 }
 
@@ -333,13 +332,16 @@ func getPacketFromDestination(version nftables.TableFamily, ns []netns.NsHandle,
 
 	// Just sending first Sync packet should be sufficient, as long as it comes with SNATed address,
 	// no need to complete 3 way handshake.
+	var result *resultMsg
+
 	dial(version, ns[0], ip[1], srcPort, proto)
 
 	// Get results
-	result, err := getResult(resultch)
+	result, err = getResult(resultch)
 	if err != nil {
 		return nil, fmt.Errorf("getPacket failed with error: %+v", err)
 	}
+
 	return result.addr, nil
 }
 
@@ -361,6 +363,7 @@ func IPv4UDPSNATValidation(version nftables.TableFamily, ns []netns.NsHandle, ip
 	if err != nil {
 		return err
 	}
+
 	if addr.String() != "5.5.5.5" {
 		return fmt.Errorf("Unexpected source address: %s, expected address: 5.5.5.5", addr.String())
 	}

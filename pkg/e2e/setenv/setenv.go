@@ -182,10 +182,12 @@ func newIntfName(id int) string {
 }
 
 func twoNewNS() (netns.NsHandle, netns.NsHandle, error) {
+	// ns1, err := netns.GetFromName("namespace_1")
 	ns1, err := netns.New()
 	if err != nil {
 		return -1, -1, err
 	}
+	// ns2, err := netns.GetFromName("namespace_2")
 	ns2, err := netns.New()
 	if err != nil {
 		return -1, -1, err
