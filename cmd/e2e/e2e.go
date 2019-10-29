@@ -326,6 +326,13 @@ func main() {
 		}
 		fmt.Printf("+++ Finished test: \"%s\" successfully.\n", tt.Name)
 	}
+	// Testing Sync feature, in a namespace a set of rules will be created and programmed, then tables/chains/rules in
+	// memory removed, Sync is supposed to learn and rebuild in-memory data structures based on discovered in the namesapce
+	// nftables information.
+	if err := testSync(); err != nil {
+		fmt.Printf("--- Test: Sync failed with error: %+v\n", err)
+		os.Exit(1)
+	}
 }
 
 func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {
