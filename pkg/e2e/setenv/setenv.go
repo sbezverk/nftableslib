@@ -580,7 +580,8 @@ func printNSLink(ns netns.NsHandle) error {
 }
 
 // NFTablesSet sets up nftables rules in the namespace
-func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule, debug bool, tableName ...string) error {
+func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily,
+	nfrules map[TestChain][]nftableslib.Rule, debug bool, tableName ...string) (nftableslib.TablesInterface, error) {
 	conn := nftableslib.InitConn(int(ns))
 	ti := nftableslib.InitNFTables(conn)
 
@@ -591,24 +592,24 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[Te
 		tn = "t" + uuid.New().String()[:8]
 	}
 	if err := ti.Tables().CreateImm(tn, version); err != nil {
-		return fmt.Errorf("failed to create table with error: %+v", err)
+		return nil, fmt.Errorf("failed to create table with error: %+v", err)
 	}
 	ci, err := ti.Tables().Table(tn, version)
 	if err != nil {
-		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
+		return nil, fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
 	}
 
 	for chain, rules := range nfrules {
 		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
-			return fmt.Errorf("failed to create chain with error: %+v", err)
+			return nil, fmt.Errorf("failed to create chain with error: %+v", err)
 		}
 		ri, err := ci.Chains().Chain(chain.Name)
 		if err != nil {
-			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+			return nil, fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
 		}
 		for _, rule := range rules {
 			if _, err = ri.Rules().CreateImm(&rule); err != nil {
-				return fmt.Errorf("failed to create rule with error: %+v", err)
+				return nil, fmt.Errorf("failed to create rule with error: %+v", err)
 			}
 		}
 	}
@@ -617,5 +618,5 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[Te
 		fmt.Printf("Resulting nftables rule: %s\n", string(b))
 	}
 
-	return nil
+	return ti, nil
 }

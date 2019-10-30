@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/google/nftables"
 	"github.com/sbezverk/nftableslib"
 	"github.com/sbezverk/nftableslib/pkg/e2e/setenv"
@@ -45,8 +47,45 @@ func testSync() error {
 		return err
 	}
 
-	if err := setenv.NFTablesSet(ns, test.Version, test.DstNFRules, true, test.TableName); err != nil {
+	ti, err := setenv.NFTablesSet(ns, test.Version, test.DstNFRules, false, test.TableName)
+	if err != nil {
 		return err
 	}
+	org, err := ti.Tables().Dump()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Initial programmed tables/chains/rules: %s\n", string(org))
+	ns.Close()
+
+	// Reinitializing connection to the namespace
+	newNS, err := setenv.NewNS("namespace_1")
+	if err != nil {
+		return err
+	}
+	defer newNS.Close()
+	newConn := nftableslib.InitConn(int(newNS))
+	newTI := nftableslib.InitNFTables(newConn)
+	//	learned, err := newTI.Tables().Dump()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	fmt.Printf("Learned  before Sync() tables/chains/rules: %s\n", string(learned))
+	// Attempting to Sync with already existing tables/chains/rules
+	if err := newTI.Tables().Sync(test.Version); err != nil {
+		return err
+	}
+	//	learned, err = newTI.Tables().Dump()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	fmt.Printf("Learned  after Sync() tables/chains/rules: %s\n", string(learned))
+
+	_, err = newTI.Tables().TableChains(test.TableName, test.Version)
+	if err != nil {
+		return err
+	}
+	//	newRI, err := newCI.Chains().Chain(test.)
+
 	return nil
 }

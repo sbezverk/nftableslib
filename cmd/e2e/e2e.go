@@ -230,7 +230,7 @@ func main() {
 			DebugNFRules: false,
 		},
 		{
-			Name:    "IPV6 UDO SNAT",
+			Name:    "IPV6 UDP SNAT",
 			Version: nftables.TableFamilyIPv6,
 			SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
 				setenv.TestChain{
@@ -303,13 +303,13 @@ func main() {
 			os.Exit(1)
 		}
 		if tt.SrcNFRules != nil {
-			if err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNFRules, tt.DebugNFRules); err != nil {
+			if _, err := setenv.NFTablesSet(ns[0], tt.Version, tt.SrcNFRules, tt.DebugNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a source namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
 		}
 		if tt.DstNFRules != nil {
-			if err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNFRules, tt.DebugNFRules); err != nil {
+			if _, err := setenv.NFTablesSet(ns[1], tt.Version, tt.DstNFRules, tt.DebugNFRules); err != nil {
 				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a destination namespace with error: %+v\n", tt.Name, err)
 				os.Exit(1)
 			}
