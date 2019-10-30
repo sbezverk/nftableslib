@@ -53,7 +53,7 @@ type ChainFuncs interface {
 	Exist(name string) bool
 	Sync() error
 	Dump() ([]byte, error)
-	// TODO figure out what other methods are needed and them
+	Get() ([]string, error)
 }
 
 type nfChains struct {
@@ -225,6 +225,29 @@ func (nfc *nfChains) Exist(name string) bool {
 	}
 
 	return false
+}
+
+// Get returns all tables defined for a specific TableFamily
+func (nfc *nfChains) Get() ([]string, error) {
+	chains, err := nfc.conn.ListChains()
+	if err != nil {
+		return nil, err
+	}
+	var chainNames []string
+	for _, chain := range chains {
+		if nfc.table.Name == chain.Table.Name && nfc.table.Family == chain.Table.Family {
+			if _, ok := nfc.chains[chain.Name]; !ok {
+				// Found chain which is not in the store
+				// triggering Sync() to add it
+				if err := nfc.Sync(); err == nil {
+					return nil, fmt.Errorf("Found chain in table %s which was missing in the store, failed to add it with error: %+v", chain.Table.Name, err)
+				}
+			}
+			chainNames = append(chainNames, chain.Name)
+		}
+	}
+
+	return chainNames, nil
 }
 
 func newChains(conn NetNS, t *nftables.Table) ChainsInterface {
