@@ -239,7 +239,7 @@ func (nfc *nfChains) Get() ([]string, error) {
 			if _, ok := nfc.chains[chain.Name]; !ok {
 				// Found chain which is not in the store
 				// triggering Sync() to add it
-				if err := nfc.Sync(); err == nil {
+				if err := nfc.Sync(); err != nil {
 					return nil, fmt.Errorf("Found chain in table %s which was missing in the store, failed to add it with error: %+v", chain.Table.Name, err)
 				}
 			}
