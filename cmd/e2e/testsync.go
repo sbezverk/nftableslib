@@ -89,20 +89,21 @@ func testSync() error {
 		},
 	}
 
-	ns, err := setenv.NewNS()
+	ns, err := setenv.NewNS("namespace_1")
 	if err != nil {
 		return err
 	}
-	var ti nftableslib.TablesInterface
+	ti := setenv.MakeTablesInterface(ns)
+	if err := ti.Tables().CreateImm(test.TableName, test.Version); err != nil {
+		return err
+	}
 	if test.DstNFRules != nil {
-		ti, err = setenv.NFTablesSet(ns, test.Version, test.DstNFRules, false, test.TableName)
-		if err != nil {
+		if err := setenv.ProgramTestRules(ti, test.TableName, test.Version, test.DstNFRules); err != nil {
 			return err
 		}
 	}
 	if test.SrcNFRules != nil {
-		ti, err = setenv.NFTablesSet(ns, test.Version, test.SrcNFRules, false, test.TableName)
-		if err != nil {
+		if err := setenv.ProgramTestRules(ti, test.TableName, test.Version, test.SrcNFRules); err != nil {
 			return err
 		}
 	}
@@ -126,8 +127,7 @@ func testSync() error {
 		return err
 	}
 	defer newNS.Close()
-	newConn := nftableslib.InitConn(int(newNS))
-	newTI := nftableslib.InitNFTables(newConn)
+	newTI := setenv.MakeTablesInterface(newNS)
 
 	// Attempting to Sync with already existing tables/chains/rules
 	if err := newTI.Tables().Sync(test.Version); err != nil {
@@ -138,6 +138,7 @@ func testSync() error {
 	if err != nil {
 		return err
 	}
+
 	chains, err = newCI.Chains().Get()
 	if err != nil {
 		return err

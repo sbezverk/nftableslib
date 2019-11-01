@@ -580,10 +580,8 @@ func printNSLink(ns netns.NsHandle) error {
 }
 
 // NFTablesSet sets up nftables rules in the namespace
-func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily,
+func NFTablesSet(ti nftableslib.TablesInterface, version nftables.TableFamily,
 	nfrules map[TestChain][]nftableslib.Rule, debug bool, tableName ...string) (nftableslib.TablesInterface, error) {
-	conn := nftableslib.InitConn(int(ns))
-	ti := nftableslib.InitNFTables(conn)
 
 	var tn string
 	if len(tableName) == 1 {
@@ -594,24 +592,8 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily,
 	if err := ti.Tables().CreateImm(tn, version); err != nil {
 		return nil, fmt.Errorf("failed to create table with error: %+v", err)
 	}
-	ci, err := ti.Tables().Table(tn, version)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
-	}
-
-	for chain, rules := range nfrules {
-		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
-			return nil, fmt.Errorf("failed to create chain with error: %+v", err)
-		}
-		ri, err := ci.Chains().Chain(chain.Name)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
-		}
-		for _, rule := range rules {
-			if _, err = ri.Rules().CreateImm(&rule); err != nil {
-				return nil, fmt.Errorf("failed to create rule with error: %+v", err)
-			}
-		}
+	if err := ProgramTestRules(ti, tn, version, nfrules); err != nil {
+		return nil, err
 	}
 	if debug {
 		b, _ := ti.Tables().Dump()
@@ -619,4 +601,34 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily,
 	}
 
 	return ti, nil
+}
+
+// MakeTablesInterface instantiates TablesInterface for a namespace passed as a parameter
+func MakeTablesInterface(ns netns.NsHandle) nftableslib.TablesInterface {
+	return nftableslib.InitNFTables(nftableslib.InitConn(int(ns)))
+}
+
+// ProgramTestRules program rules for a nf table specified by name and version
+func ProgramTestRules(ti nftableslib.TablesInterface, tn string, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
+	ci, err := ti.Tables().Table(tn, version)
+	if err != nil {
+		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
+	}
+
+	for chain, rules := range nfrules {
+		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
+			return fmt.Errorf("failed to create chain with error: %+v", err)
+		}
+		ri, err := ci.Chains().Chain(chain.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+		}
+		for _, rule := range rules {
+			if _, err = ri.Rules().CreateImm(&rule); err != nil {
+				return fmt.Errorf("failed to create rule with error: %+v", err)
+			}
+		}
+	}
+
+	return nil
 }
