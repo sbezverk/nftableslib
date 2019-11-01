@@ -89,59 +89,53 @@ func testSync() error {
 		},
 	}
 
-	ns, err := setenv.NewNS("namespace_1")
+	ns, err := setenv.NewNS()
 	if err != nil {
 		return err
 	}
+	defer ns.Close()
 	ti := setenv.MakeTablesInterface(ns)
 	if err := ti.Tables().CreateImm(test.TableName, test.Version); err != nil {
-		return err
+		return fmt.Errorf("fail to create table %s with error: %+v", test.TableName, err)
 	}
 	if test.DstNFRules != nil {
 		if err := setenv.ProgramTestRules(ti, test.TableName, test.Version, test.DstNFRules); err != nil {
-			return err
+			return fmt.Errorf("fail to create destination test rules table %s with error: %+v", test.TableName, err)
 		}
 	}
 	if test.SrcNFRules != nil {
 		if err := setenv.ProgramTestRules(ti, test.TableName, test.Version, test.SrcNFRules); err != nil {
-			return err
+			return fmt.Errorf("fail to create destination test rules table %s with error: %+v", test.TableName, err)
 		}
 	}
 
 	ci, err := ti.Tables().TableChains(test.TableName, test.Version)
 	if err != nil {
-		return err
+		return fmt.Errorf("fail to get Chains interface for table %s with error: %+v", test.TableName, err)
 	}
 	chains, err := ci.Chains().Get()
 	if err != nil {
-		return err
+		return fmt.Errorf("fail to get Chains list for table %s with error: %+v", test.TableName, err)
 	}
 	// printChainRules(chains, ci, test.TableName)
 	orgRules, _ := rulesToBytes(chains, ci, test.TableName)
-	// Forcing to close connection with namespace's netfilter
-	ns.Close()
 
-	// Reinitializing connection to the namespace
-	newNS, err := setenv.NewNS("namespace_1")
-	if err != nil {
-		return err
-	}
-	defer newNS.Close()
-	newTI := setenv.MakeTablesInterface(newNS)
+	// Creating New TablesInterface
+	newTI := setenv.MakeTablesInterface(ns)
 
 	// Attempting to Sync with already existing tables/chains/rules
 	if err := newTI.Tables().Sync(test.Version); err != nil {
-		return err
+		return fmt.Errorf("fail to Sync with error: %+v", err)
 	}
 
 	newCI, err := newTI.Tables().TableChains(test.TableName, test.Version)
 	if err != nil {
-		return err
+		return fmt.Errorf("fail to get new Chains interface for table %s with error: %+v", test.TableName, err)
 	}
 
 	chains, err = newCI.Chains().Get()
 	if err != nil {
-		return err
+		return fmt.Errorf("fail to get new Chains list with error: %+v", err)
 	}
 	if len(chains) == 0 {
 		return fmt.Errorf("no chains discovered")
