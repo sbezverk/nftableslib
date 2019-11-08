@@ -21,8 +21,9 @@ import (
 
 // TestChain defines a key in NFTablesTes map
 type TestChain struct {
-	Name string
-	Attr *nftableslib.ChainAttributes
+	Name  string
+	Attr  *nftableslib.ChainAttributes
+	Rules []nftableslib.Rule
 }
 
 // NFTablesTest defines structure used for tests
@@ -30,8 +31,8 @@ type NFTablesTest struct {
 	Name         string
 	TableName    string
 	Version      nftables.TableFamily
-	SrcNFRules   map[TestChain][]nftableslib.Rule
-	DstNFRules   map[TestChain][]nftableslib.Rule
+	SrcNFRules   []TestChain
+	DstNFRules   []TestChain
 	Saddr        string
 	Daddr        string
 	Validation   func(nftables.TableFamily, []netns.NsHandle, []*nftableslib.IPAddr) error
@@ -581,7 +582,7 @@ func printNSLink(ns netns.NsHandle) error {
 
 // NFTablesSet sets up nftables rules in the namespace
 func NFTablesSet(ti nftableslib.TablesInterface, version nftables.TableFamily,
-	nfrules map[TestChain][]nftableslib.Rule, debug bool, tableName ...string) (nftableslib.TablesInterface, error) {
+	nfrules []TestChain, debug bool, tableName ...string) (nftableslib.TablesInterface, error) {
 
 	var tn string
 	if len(tableName) == 1 {
@@ -609,13 +610,13 @@ func MakeTablesInterface(ns netns.NsHandle) nftableslib.TablesInterface {
 }
 
 // ProgramTestRules program rules for a nf table specified by name and version
-func ProgramTestRules(ti nftableslib.TablesInterface, tn string, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
+func ProgramTestRules(ti nftableslib.TablesInterface, tn string, version nftables.TableFamily, nfrules []TestChain) error {
 	ci, err := ti.Tables().Table(tn, version)
 	if err != nil {
 		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
 	}
 
-	for chain, rules := range nfrules {
+	for _, chain := range nfrules {
 		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
 			return fmt.Errorf("failed to create chain with error: %+v", err)
 		}
@@ -623,7 +624,7 @@ func ProgramTestRules(ti nftableslib.TablesInterface, tn string, version nftable
 		if err != nil {
 			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
 		}
-		for _, rule := range rules {
+		for _, rule := range chain.Rules {
 			if _, err = ri.Rules().CreateImm(&rule); err != nil {
 				return fmt.Errorf("failed to create rule with error: %+v", err)
 			}
