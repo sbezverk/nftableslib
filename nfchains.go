@@ -158,19 +158,21 @@ func (nfc *nfChains) Sync() error {
 	}
 	for _, chain := range chains {
 		if chain.Table.Name == nfc.table.Name && chain.Table.Family == nfc.table.Family {
-			baseChain := false
-			if chain.Type != "" && chain.Hooknum != 0 {
-				baseChain = true
-			}
-			nfc.Lock()
-			nfc.chains[chain.Name] = &nfChain{
-				chain:          chain,
-				baseChain:      baseChain,
-				RulesInterface: newRules(nfc.conn, nfc.table, chain),
-			}
-			nfc.Unlock()
-			if err := nfc.chains[chain.Name].Rules().Sync(); err != nil {
-				return err
+			if _, ok := nfc.chains[chain.Name]; !ok {
+				baseChain := false
+				if chain.Type != "" && chain.Hooknum != 0 {
+					baseChain = true
+				}
+				nfc.Lock()
+				nfc.chains[chain.Name] = &nfChain{
+					chain:          chain,
+					baseChain:      baseChain,
+					RulesInterface: newRules(nfc.conn, nfc.table, chain),
+				}
+				nfc.Unlock()
+				if err := nfc.chains[chain.Name].Rules().Sync(); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -239,7 +241,7 @@ func (nfc *nfChains) Get() ([]string, error) {
 			if _, ok := nfc.chains[chain.Name]; !ok {
 				// Found chain which is not in the store
 				// triggering Sync() to add it
-				if err := nfc.Sync(); err == nil {
+				if err := nfc.Sync(); err != nil {
 					return nil, fmt.Errorf("Found chain in table %s which was missing in the store, failed to add it with error: %+v", chain.Table.Name, err)
 				}
 			}

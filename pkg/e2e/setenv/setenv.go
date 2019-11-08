@@ -28,6 +28,7 @@ type TestChain struct {
 // NFTablesTest defines structure used for tests
 type NFTablesTest struct {
 	Name         string
+	TableName    string
 	Version      nftables.TableFamily
 	SrcNFRules   map[TestChain][]nftableslib.Rule
 	DstNFRules   map[TestChain][]nftableslib.Rule
@@ -181,19 +182,34 @@ func newIntfName(id int) string {
 	return intf
 }
 
-func twoNewNS() (netns.NsHandle, netns.NsHandle, error) {
-	// ns1, err := netns.GetFromName("namespace_1")
-	ns1, err := netns.New()
+func twoNewNS() (ns1 netns.NsHandle, ns2 netns.NsHandle, err error) {
+	ns1, err = netns.New()
 	if err != nil {
 		return -1, -1, err
 	}
-	// ns2, err := netns.GetFromName("namespace_2")
-	ns2, err := netns.New()
+	ns2, err = netns.New()
 	if err != nil {
 		return -1, -1, err
 	}
 
 	return ns1, ns2, err
+}
+
+// NewNS returns a namespace handle either for an already existing namespace
+// specified by its name, or a new one which it creates.
+func NewNS(name ...string) (ns netns.NsHandle, err error) {
+	if len(name) == 1 {
+		ns, err = netns.GetFromName(name[0])
+		if err != nil {
+			return -1, err
+		}
+	} else {
+		ns, err = netns.New()
+		if err != nil {
+			return -1, err
+		}
+	}
+	return ns, err
 }
 
 func addVethToNS(ns1, ns2 netns.NsHandle, veth *netlink.Veth) (netlink.Link, netlink.Link, error) {
@@ -564,14 +580,36 @@ func printNSLink(ns netns.NsHandle) error {
 }
 
 // NFTablesSet sets up nftables rules in the namespace
-func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule, debug bool) error {
-	conn := nftableslib.InitConn(int(ns))
-	ti := nftableslib.InitNFTables(conn)
+func NFTablesSet(ti nftableslib.TablesInterface, version nftables.TableFamily,
+	nfrules map[TestChain][]nftableslib.Rule, debug bool, tableName ...string) (nftableslib.TablesInterface, error) {
 
-	tn := "t" + uuid.New().String()[:8]
-	if err := ti.Tables().CreateImm(tn, version); err != nil {
-		return fmt.Errorf("failed to create table with error: %+v", err)
+	var tn string
+	if len(tableName) == 1 {
+		tn = tableName[0]
+	} else {
+		tn = "t" + uuid.New().String()[:8]
 	}
+	if err := ti.Tables().CreateImm(tn, version); err != nil {
+		return nil, fmt.Errorf("failed to create table with error: %+v", err)
+	}
+	if err := ProgramTestRules(ti, tn, version, nfrules); err != nil {
+		return nil, err
+	}
+	if debug {
+		b, _ := ti.Tables().Dump()
+		fmt.Printf("Resulting nftables rule: %s\n", string(b))
+	}
+
+	return ti, nil
+}
+
+// MakeTablesInterface instantiates TablesInterface for a namespace passed as a parameter
+func MakeTablesInterface(ns netns.NsHandle) nftableslib.TablesInterface {
+	return nftableslib.InitNFTables(nftableslib.InitConn(int(ns)))
+}
+
+// ProgramTestRules program rules for a nf table specified by name and version
+func ProgramTestRules(ti nftableslib.TablesInterface, tn string, version nftables.TableFamily, nfrules map[TestChain][]nftableslib.Rule) error {
 	ci, err := ti.Tables().Table(tn, version)
 	if err != nil {
 		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
@@ -590,10 +628,6 @@ func NFTablesSet(ns netns.NsHandle, version nftables.TableFamily, nfrules map[Te
 				return fmt.Errorf("failed to create rule with error: %+v", err)
 			}
 		}
-	}
-	if debug {
-		b, _ := ti.Tables().Dump()
-		fmt.Printf("Resulting nftables rule: %s\n", string(b))
 	}
 
 	return nil
