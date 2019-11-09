@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/nftables"
 )
@@ -21,7 +22,8 @@ const (
 	ChainPolicyAccept ChainPolicy = 1
 	// ChainPolicyDrop defines "drop" chain policy
 	ChainPolicyDrop ChainPolicy = 0
-	// TODO Need to figure out value of chain's drop policy
+	// ChainReadyTimeout defines maximum time to wait for a chain to be ready
+	ChainReadyTimeout = time.Millisecond * 100
 )
 
 // ChainAttributes defines attributes which can be apply to a chain of BASE type
@@ -128,8 +130,34 @@ func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
 	if err := nfc.Create(name, attributes); err != nil {
 		return err
 	}
-
-	return nfc.conn.Flush()
+	// Flush notifies netlink to proceed with prgramming of a chain
+	if err := nfc.conn.Flush(); err != nil {
+		return err
+	}
+	timeout := time.NewTimer(ChainReadyTimeout)
+	ticker := time.NewTicker(ChainReadyTimeout / 10)
+	defer ticker.Stop()
+	for {
+		// Need to make sure that chain is ready before returning control to the caller
+		ready, err := nfc.Ready(name)
+		if err != nil {
+			// Checking for Readiness failed, removing the chain from the store
+			// and return error to the caller
+			nfc.Delete(name)
+			return err
+		}
+		if ready {
+			timeout.Stop()
+			return nil
+		}
+		select {
+		case <-timeout.C:
+			nfc.Delete(name)
+			return fmt.Errorf("timeout waiting for chain %s to become ready", name)
+		case <-ticker.C:
+			continue
+		}
+	}
 }
 
 func (nfc *nfChains) Delete(name string) error {
@@ -250,6 +278,23 @@ func (nfc *nfChains) Get() ([]string, error) {
 	}
 
 	return chainNames, nil
+}
+
+// Ready returns true if the chain is found in the list of programmed chains
+func (nfc *nfChains) Ready(name string) (bool, error) {
+	chains, err := nfc.conn.ListChains()
+	if err != nil {
+		return false, err
+	}
+	for _, chain := range chains {
+		if nfc.table.Name == chain.Table.Name && nfc.table.Family == chain.Table.Family {
+			if name == chain.Name {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func newChains(conn NetNS, t *nftables.Table) ChainsInterface {

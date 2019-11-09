@@ -20,70 +20,73 @@ func testSync() error {
 		Name:      "Sync rules test",
 		TableName: "nftables_ipv4",
 		Version:   nftables.TableFamilyIPv4,
-		DstNFRules: map[setenv.TestChain][]nftableslib.Rule{
-			setenv.TestChain{
-				"chain-1",
-				nil,
-			}: []nftableslib.Rule{
-				{
-					// This rule will block ALL TCP traffic with the exception of traffic destined to port 8888
-					L4: &nftableslib.L4Rule{
-						L4Proto: unix.IPPROTO_TCP,
-						Dst: &nftableslib.Port{
-							List:  nftableslib.SetPortList([]int{8888}),
-							RelOp: nftableslib.NEQ,
+		DstNFRules: []setenv.TestChain{
+			{
+				Name: "chain-1",
+				Attr: nil,
+				Rules: []nftableslib.Rule{
+					{
+						// This rule will block ALL TCP traffic with the exception of traffic destined to port 8888
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List:  nftableslib.SetPortList([]int{8888}),
+								RelOp: nftableslib.NEQ,
+							},
 						},
+						Action: setActionVerdict(nftableslib.NFT_DROP),
 					},
-					Action: setActionVerdict(nftableslib.NFT_DROP),
-				},
-				{
-					// Allowed TCP traffic to port 8888 will be redirected to port 9999
-					L4: &nftableslib.L4Rule{
-						L4Proto: unix.IPPROTO_TCP,
-						Dst: &nftableslib.Port{
-							List: nftableslib.SetPortList([]int{8888}),
+					{
+						// Allowed TCP traffic to port 8888 will be redirected to port 9999
+						L4: &nftableslib.L4Rule{
+							L4Proto: unix.IPPROTO_TCP,
+							Dst: &nftableslib.Port{
+								List: nftableslib.SetPortList([]int{8888}),
+							},
 						},
+						Action: setActionRedirect(9999, false),
 					},
-					Action: setActionRedirect(9999, false),
 				},
 			},
-			setenv.TestChain{
-				"chain-2",
-				&nftableslib.ChainAttributes{
+			{
+				Name: "chain-2",
+				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeFilter,
 					Priority: 0,
 					Hook:     nftables.ChainHookInput,
 					Policy:   nftableslib.ChainPolicyAccept,
 				},
-			}: []nftableslib.Rule{
-				{
-					L3: &nftableslib.L3Rule{
-						Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
-						Dst: &nftableslib.IPAddrSpec{
-							List: []*nftableslib.IPAddr{setIPAddr("1.1.0.0/16")},
+				Rules: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_ICMP),
+							Dst: &nftableslib.IPAddrSpec{
+								List: []*nftableslib.IPAddr{setIPAddr("1.1.0.0/16")},
+							},
 						},
+						Action: setActionVerdict(nftableslib.NFT_DROP),
 					},
-					Action: setActionVerdict(nftableslib.NFT_DROP),
 				},
 			},
 		},
-		SrcNFRules: map[setenv.TestChain][]nftableslib.Rule{
-			setenv.TestChain{
-				"chain-3",
-				&nftableslib.ChainAttributes{
+		SrcNFRules: []setenv.TestChain{
+			{
+				Name: "chain-3",
+				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
 					Priority: 0,
 					Hook:     nftables.ChainHookPostrouting,
 				},
-			}: []nftableslib.Rule{
-				{
-					L3: &nftableslib.L3Rule{
-						Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+				Rules: []nftableslib.Rule{
+					{
+						L3: &nftableslib.L3Rule{
+							Protocol: nftableslib.L3Protocol(unix.IPPROTO_TCP),
+						},
+						Action: setSNAT(&nftableslib.NATAttributes{
+							L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
+							Port:   [2]uint16{7777},
+						}),
 					},
-					Action: setSNAT(&nftableslib.NATAttributes{
-						L3Addr: [2]*nftableslib.IPAddr{setIPAddr("5.5.5.5")},
-						Port:   [2]uint16{7777},
-					}),
 				},
 			},
 		},
