@@ -172,11 +172,26 @@ func (nfc *nfChains) Delete(name string) error {
 }
 
 func (nfc *nfChains) DeleteImm(name string) error {
-	if err := nfc.Delete(name); err != nil {
+	var err error
+	if err = nfc.Delete(name); err != nil {
 		return err
 	}
+	timeout := time.NewTimer(ChainReadyTimeout)
+	ticker := time.NewTicker(ChainReadyTimeout / 10)
+	defer ticker.Stop()
+	for {
+		// Flush notifies netlink to proceed with prgramming of a chain
+		if err = nfc.conn.Flush(); err == nil {
+			return nil
+		}
 
-	return nfc.conn.Flush()
+		select {
+		case <-timeout.C:
+			return err
+		case <-ticker.C:
+			continue
+		}
+	}
 }
 
 func (nfc *nfChains) Sync() error {
