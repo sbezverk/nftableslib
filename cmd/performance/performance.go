@@ -3,15 +3,16 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
-	"runtime/pprof"
+	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/google/nftables"
 	"github.com/sbezverk/nftableslib"
 	"github.com/sbezverk/nftableslib/pkg/e2e/setenv"
-	"github.com/sbezverk/nftableslib/pkg/e2e/validations"
 )
 
 func init() {
@@ -45,9 +46,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "1.1.1.1/24",
-			Daddr:      "1.1.1.2/24",
-			Validation: validations.ICMPDropTestValidation,
 		},
 		{
 			Name:    "IPV4 Redirecting TCP port 8888 to 9999",
@@ -97,9 +95,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "1.1.1.1/24",
-			Daddr:      "1.1.1.2/24",
-			Validation: validations.TCPPortRedirectValidation,
 		},
 		{
 			Name:    "IPV6 Redirecting TCP port 8888 to 9999",
@@ -149,9 +144,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "2001:1::1/64",
-			Daddr:      "2001:1::2/64",
-			Validation: validations.TCPPortRedirectValidation,
 		},
 		{
 			Name:    "IPV4 TCP SNAT",
@@ -177,10 +169,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:        "1.1.1.1/24",
-			Daddr:        "1.1.1.2/24",
-			Validation:   validations.IPv4TCPSNATValidation,
-			DebugNFRules: false,
 		},
 		{
 			Name:    "IPV6 TCP SNAT",
@@ -205,9 +193,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "2001:1::1/64",
-			Daddr:      "2001:1::2/64",
-			Validation: validations.IPv6TCPSNATValidation,
 		},
 		{
 			Name:    "IPV4 UDP SNAT",
@@ -233,10 +218,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:        "1.1.1.1/24",
-			Daddr:        "1.1.1.2/24",
-			Validation:   validations.IPv4UDPSNATValidation,
-			DebugNFRules: false,
 		},
 		{
 			Name:    "IPV6 UDP SNAT",
@@ -261,9 +242,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "2001:1::1/64",
-			Daddr:      "2001:1::2/64",
-			Validation: validations.IPv6UDPSNATValidation,
 		},
 		{
 			Name:    "IPV6 ICMP Drop",
@@ -290,9 +268,6 @@ func main() {
 					},
 				},
 			},
-			Saddr:      "2001:1::1/64",
-			Daddr:      "2001:1::2/64",
-			Validation: validations.ICMPDropTestValidation,
 		},
 	}
 
@@ -304,61 +279,130 @@ func main() {
 	//	if err := pprof.WriteHeapProfile(memProf); err != nil {
 	//		fmt.Printf("Error writing memory profile with error: %+v\n", err)
 	//	}
-	for _, tt := range tests {
 
-		fmt.Printf("+++ Starting test: \"%s\" \n", tt.Name)
-		t, err := setenv.NewP2PTestEnv(tt.Version, tt.Saddr, tt.Daddr)
-		if err != nil {
-			fmt.Printf("--- Test: \"%s\" failed with error: %+v\n", tt.Name, err)
-			os.Exit(1)
-		}
-		defer t.Cleanup()
-		// Get allocated namesapces and prepared ip addresses
-		ns := t.GetNamespace()
-		ip := t.GetIPs()
-
-		// Initial connectivity test before applying any nftables rules
-		if err := setenv.TestICMP(ns[0], tt.Version, ip[0], ip[1]); err != nil {
-			fmt.Printf("--- Test: \"%s\" failed during initial connectivity test with error: %+v\n", tt.Name, err)
-			os.Exit(1)
-		}
-		if tt.SrcNFRules != nil {
-			if _, err := setenv.NFTablesSet(setenv.MakeTablesInterface(ns[0]), tt.Version, tt.SrcNFRules, tt.DebugNFRules); err != nil {
-				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a source namespace with error: %+v\n", tt.Name, err)
-				os.Exit(1)
-			}
-		}
-		if tt.DstNFRules != nil {
-			if _, err := setenv.NFTablesSet(setenv.MakeTablesInterface(ns[1]), tt.Version, tt.DstNFRules, tt.DebugNFRules); err != nil {
-				fmt.Printf("--- Test: \"%s\" failed to setup nftables table/chain/rule in a destination namespace with error: %+v\n", tt.Name, err)
-				os.Exit(1)
-			}
-		}
-		// Check if test's validation is set and execute validation.
-		if tt.Validation != nil {
-			if err := tt.Validation(tt.Version, ns, ip); err != nil {
-				fmt.Printf("--- Test: \"%s\" failed validation error: %+v\n", tt.Name, err)
-				os.Exit(1)
-			}
-		} else {
-			fmt.Printf("--- Test: \"%s\" has no validation, test without validation is not allowed\n", tt.Name)
-			os.Exit(1)
-		}
-		fmt.Printf("+++ Finished test: \"%s\" successfully.\n", tt.Name)
-	}
-	fmt.Printf("+++ Starting test: Sync() \n")
-	// Testing Sync feature, in a namespace a set of rules will be created and programmed, then tables/chains/rules in
-	// memory removed, Sync is supposed to learn and rebuild in-memory data structures based on discovered in the namesapce
-	// nftables information.
-	if err := testSync(); err != nil {
-		fmt.Printf("--- Test: Sync failed with error: %+v\n", err)
+	ns, err := setenv.NewNS()
+	if err != nil {
+		fmt.Printf("fail to create test namespace with error: %+v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("+++ Finished test: Sync() successfully.\n")
+	stopIPv4 := make(chan struct{})
+	stopIPv6 := make(chan struct{})
+	ti := setenv.MakeTablesInterface(ns)
 
-	if err := pprof.WriteHeapProfile(memProf); err != nil {
-		fmt.Printf("Error writing memory profile with error: %+v\n", err)
+	go func() {
+		err = runTests(ti, nftables.TableFamilyIPv4, tests, stopIPv4)
+	}()
+	if err != nil {
+		fmt.Printf("Failed to start ipv4 tester with error: %+v\n", err)
+		ns.Close()
+		os.Exit(1)
 	}
+	go func() {
+		err = runTests(ti, nftables.TableFamilyIPv6, tests, stopIPv6)
+	}()
+	if err != nil {
+		fmt.Printf("Failed to start ipv6 tester with error: %+v\n", err)
+		ns.Close()
+		os.Exit(1)
+	}
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	fmt.Printf("Waiting for Ctrl-C\n")
+	<-c
+	stopIPv4 <- struct{}{}
+	stopIPv6 <- struct{}{}
+	fmt.Printf("Waiting on stop to close\n")
+	<-stopIPv4
+	<-stopIPv6
+	ns.Close()
+	fmt.Printf("Finished\n")
+}
+
+func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests []setenv.NFTablesTest, stop chan struct{}) error {
+	tn := "tableipv4"
+	if family == nftables.TableFamilyIPv6 {
+		tn = "tableipv6"
+	}
+	if err := ti.Tables().CreateImm(tn, family); err != nil {
+		return fmt.Errorf("failed to create table %s with error: %+v", tn, err)
+	}
+	defer ti.Tables().DeleteImm(tn, family)
+	ci, err := ti.Tables().Table(tn, family)
+	if err != nil {
+		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
+	}
+	for {
+		for _, test := range tests {
+			if err := programTest(ci, test); err == nil {
+				time.Sleep(time.Second * 2)
+				if err := cleanupTest(ci, test); err != nil {
+					fmt.Printf("failed to cleanup for test %s with error: %+v", test.Name, err)
+					return err
+				}
+			} else {
+				fmt.Printf("failed to program test %s with error: %+v", test.Name, err)
+				return err
+			}
+			select {
+			case <-stop:
+				fmt.Printf("Stop received\n")
+				close(stop)
+				return nil
+			default:
+			}
+		}
+	}
+}
+
+func programTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) error {
+	fmt.Printf("Running test %s\n", test.Name)
+	chains := test.DstNFRules
+	if test.SrcNFRules != nil {
+		chains = test.SrcNFRules
+	}
+	for _, chain := range chains {
+		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
+			return fmt.Errorf("failed to create chain with error: %+v", err)
+		}
+		ri, err := ci.Chains().Chain(chain.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+		}
+		for _, rule := range chain.Rules {
+			if _, err = ri.Rules().CreateImm(&rule); err != nil {
+				return fmt.Errorf("failed to create rule with error: %+v", err)
+			}
+		}
+	}
+	fmt.Printf("Finished test %s\n", test.Name)
+	return nil
+}
+
+func cleanupTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) error {
+	fmt.Printf("Cleaning up for  test %s\n", test.Name)
+	chains := test.DstNFRules
+	if test.SrcNFRules != nil {
+		chains = test.SrcNFRules
+	}
+	for _, chain := range chains {
+		/*		ri, err := ci.Chains().Chain(chain.Name)
+				if err != nil {
+					return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+				}
+				for _, rule := range chain.Rules {
+					if _, err = ri.Rules().DeleteImm(); err != nil {
+						return fmt.Errorf("failed to create rule with error: %+v", err)
+					}
+				}
+
+		*/
+		if err := ci.Chains().DeleteImm(chain.Name); err != nil {
+			return fmt.Errorf("failed to delete chain with error: %+v", err)
+		}
+	}
+	fmt.Printf("Finished cleaning up for test %s\n", test.Name)
+
+	return nil
 }
 
 func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {
