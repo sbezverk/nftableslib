@@ -12,3 +12,5 @@ require (
 	golang.org/x/net v0.0.0-20191108063844-7e6e90b9ea88
 	golang.org/x/sys v0.0.0-20191105231009-c1f44814a5cd
 )
+
+replace github.com/google/nftables => ../nftables
