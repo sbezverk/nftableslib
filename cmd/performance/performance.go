@@ -286,67 +286,101 @@ func main() {
 		os.Exit(1)
 	}
 	stopIPv4 := make(chan struct{})
+	errIPv4 := make(chan struct{})
 	stopIPv6 := make(chan struct{})
+	errIPv6 := make(chan struct{})
 	ti := setenv.MakeTablesInterface(ns)
 
 	go func() {
-		err = runTests(ti, nftables.TableFamilyIPv4, tests, stopIPv4)
+		err := runTests(ti, nftables.TableFamilyIPv4, tests, stopIPv4, errIPv4)
+		if err != nil {
+			fmt.Printf("Failed to start ipv4 tester with error: %+v\n", err)
+			ns.Close()
+			os.Exit(1)
+		}
 	}()
-	if err != nil {
-		fmt.Printf("Failed to start ipv4 tester with error: %+v\n", err)
-		ns.Close()
-		os.Exit(1)
-	}
+
 	go func() {
-		err = runTests(ti, nftables.TableFamilyIPv6, tests, stopIPv6)
+		err := runTests(ti, nftables.TableFamilyIPv6, tests, stopIPv6, errIPv6)
+		if err != nil {
+			fmt.Printf("Failed to start ipv6 tester with error: %+v\n", err)
+			ns.Close()
+			os.Exit(1)
+		}
 	}()
-	if err != nil {
-		fmt.Printf("Failed to start ipv6 tester with error: %+v\n", err)
-		ns.Close()
-		os.Exit(1)
-	}
+
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	fmt.Printf("Waiting for Ctrl-C\n")
-	<-c
-	stopIPv4 <- struct{}{}
-	stopIPv6 <- struct{}{}
-	fmt.Printf("Waiting on stop to close\n")
-	<-stopIPv4
-	<-stopIPv6
+	select {
+	case <-c:
+		stopIPv4 <- struct{}{}
+		stopIPv6 <- struct{}{}
+		fmt.Printf("Waiting on stop to close\n")
+		<-stopIPv4
+		<-stopIPv6
+	case <-errIPv4:
+		fmt.Printf("ipv4 test error recieved, stop testing\n")
+		stopIPv6 <- struct{}{}
+	case <-errIPv6:
+		fmt.Printf("ipv6 test error recieved, stop testing\n")
+		stopIPv4 <- struct{}{}
+	}
+
 	ns.Close()
 	fmt.Printf("Finished\n")
 }
 
-func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests []setenv.NFTablesTest, stop chan struct{}) error {
+func printProgress(family nftables.TableFamily, message string) {
+	if family == nftables.TableFamilyIPv4 {
+		fmt.Printf("><SB> IPv4: %s\n", message)
+	} else {
+		fmt.Printf("><SB> IPv6: %s\n", message)
+	}
+}
+
+func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests []setenv.NFTablesTest, stopCh chan struct{}, errCh chan struct{}) error {
+	fmt.Printf("Running tests for family: %+v\n", family)
 	tn := "tableipv4"
 	if family == nftables.TableFamilyIPv6 {
 		tn = "tableipv6"
 	}
+
 	if err := ti.Tables().CreateImm(tn, family); err != nil {
 		return fmt.Errorf("failed to create table %s with error: %+v", tn, err)
 	}
-	defer ti.Tables().DeleteImm(tn, family)
+	printProgress(family, "Table created")
 	ci, err := ti.Tables().Table(tn, family)
 	if err != nil {
 		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
 	}
+
 	for {
-		for _, test := range tests {
-			if err := programTest(ci, test); err == nil {
-				time.Sleep(time.Second * 2)
-				if err := cleanupTest(ci, test); err != nil {
-					fmt.Printf("failed to cleanup for test %s with error: %+v", test.Name, err)
-					return err
-				}
-			} else {
-				fmt.Printf("failed to program test %s with error: %+v", test.Name, err)
+		for i, test := range tests {
+			if test.Version != family {
+				printProgress(family, fmt.Sprintf("Skip test: %d", i))
+				continue
+			}
+			fmt.Printf("Running test %s version: %+v \n", test.Name, test.Version)
+			chainRH, err := programTest(ci, test)
+			if err != nil {
+				fmt.Printf("failed to program test %s with error: %+v\n", test.Name, err)
+				errCh <- struct{}{}
 				return err
 			}
+			printProgress(family, fmt.Sprintf("Test: %d completed", i))
+			time.Sleep(time.Second * 2)
+			if err := cleanupTest(ci, test, chainRH); err != nil {
+				fmt.Printf("failed to cleanup for test %s with error: %+v\n", test.Name, err)
+				errCh <- struct{}{}
+				return err
+			}
+			printProgress(family, fmt.Sprintf("Cleanup for test: %d completed", i))
 			select {
-			case <-stop:
+			case <-stopCh:
 				fmt.Printf("Stop received\n")
-				close(stop)
+				close(errCh)
+				close(stopCh)
 				return nil
 			default:
 			}
@@ -354,49 +388,54 @@ func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests
 	}
 }
 
-func programTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) error {
-	fmt.Printf("Running test %s\n", test.Name)
+func programTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) (map[string][]uint64, error) {
 	chains := test.DstNFRules
 	if test.SrcNFRules != nil {
 		chains = test.SrcNFRules
 	}
+	chainRH := make(map[string][]uint64)
+	family := test.Version
 	for _, chain := range chains {
 		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
-			return fmt.Errorf("failed to create chain with error: %+v", err)
+			return nil, fmt.Errorf("failed to create chain with error: %+v", err)
 		}
+		printProgress(family, "Chain created")
 		ri, err := ci.Chains().Chain(chain.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
+		}
+		rhs := make([]uint64, 0)
+		for _, rule := range chain.Rules {
+			rh, err := ri.Rules().CreateImm(&rule)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create rule with error: %+v", err)
+			}
+			printProgress(family, "Rule created")
+			// fmt.Printf("Rule with handle %d programmed for chain %s\n", rh, chain.Name)
+			rhs = append(rhs, rh)
+		}
+		chainRH[chain.Name] = rhs
+	}
+	return chainRH, nil
+}
+
+func cleanupTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest, chainRH map[string][]uint64) error {
+	fmt.Printf("Cleaning up for  test %s\n", test.Name)
+
+	for chain, rhs := range chainRH {
+		ri, err := ci.Chains().Chain(chain)
 		if err != nil {
 			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
 		}
-		for _, rule := range chain.Rules {
-			if _, err = ri.Rules().CreateImm(&rule); err != nil {
-				return fmt.Errorf("failed to create rule with error: %+v", err)
+		for i := len(rhs) - 1; i >= 0; i-- {
+			// fmt.Printf("Attempting to delete rule with handle %d in chain %s\n", rhs[i], chain)
+			if err = ri.Rules().DeleteImm(rhs[i]); err != nil {
+				return fmt.Errorf("failed to delete rule with error: %+v", err)
 			}
 		}
 	}
-	fmt.Printf("Finished test %s\n", test.Name)
-	return nil
-}
-
-func cleanupTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) error {
-	fmt.Printf("Cleaning up for  test %s\n", test.Name)
-	chains := test.DstNFRules
-	if test.SrcNFRules != nil {
-		chains = test.SrcNFRules
-	}
-	for _, chain := range chains {
-		/*		ri, err := ci.Chains().Chain(chain.Name)
-				if err != nil {
-					return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
-				}
-				for _, rule := range chain.Rules {
-					if _, err = ri.Rules().DeleteImm(); err != nil {
-						return fmt.Errorf("failed to create rule with error: %+v", err)
-					}
-				}
-
-		*/
-		if err := ci.Chains().DeleteImm(chain.Name); err != nil {
+	for chain := range chainRH {
+		if err := ci.Chains().DeleteImm(chain); err != nil {
 			return fmt.Errorf("failed to delete chain with error: %+v", err)
 		}
 	}
@@ -417,7 +456,7 @@ func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {
 func setActionRedirect(port int, tproxy bool) *nftableslib.RuleAction {
 	ra, err := nftableslib.SetRedirect(port, tproxy)
 	if err != nil {
-		fmt.Printf("failed to SetRedirect with error: %+v", err)
+		fmt.Printf("failed to SetRedirect with error: %+v\n", err)
 		return nil
 	}
 	return ra
