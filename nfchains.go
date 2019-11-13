@@ -24,6 +24,8 @@ const (
 	ChainPolicyDrop ChainPolicy = 0
 	// ChainReadyTimeout defines maximum time to wait for a chain to be ready
 	ChainReadyTimeout = time.Millisecond * 100
+	// ChainDeleteTimeout defines maximum time to wait for a chain to be ready
+	ChainDeleteTimeout = time.Second * 60
 )
 
 // ChainAttributes defines attributes which can be apply to a chain of BASE type
@@ -88,9 +90,7 @@ func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
-	nfc.Lock()
-	defer nfc.Unlock()
+func (nfc *nfChains) create(name string, attributes *ChainAttributes) error {
 	if _, ok := nfc.chains[name]; ok {
 		return fmt.Errorf("chain %s already exist in table %s", name, nfc.table.Name)
 	}
@@ -126,14 +126,24 @@ func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
 	return nil
 }
 
+func (nfc *nfChains) Create(name string, attributes *ChainAttributes) error {
+	nfc.Lock()
+	defer nfc.Unlock()
+
+	return nfc.create(name, attributes)
+}
+
 func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
-	if err := nfc.Create(name, attributes); err != nil {
+	nfc.Lock()
+	defer nfc.Unlock()
+	if err := nfc.create(name, attributes); err != nil {
 		return err
 	}
 	// Flush notifies netlink to proceed with prgramming of a chain
 	if err := nfc.conn.Flush(); err != nil {
 		return err
 	}
+
 	timeout := time.NewTimer(ChainReadyTimeout)
 	ticker := time.NewTicker(ChainReadyTimeout / 10)
 	defer ticker.Stop()
@@ -153,7 +163,7 @@ func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
 		select {
 		case <-timeout.C:
 			nfc.Delete(name)
-			return fmt.Errorf("timeout waiting for chain %s to become ready", name)
+			return fmt.Errorf("timeout waiting for chain %s to become ready, last error: %+v", name, err)
 		case <-ticker.C:
 			continue
 		}
@@ -176,15 +186,14 @@ func (nfc *nfChains) DeleteImm(name string) error {
 	if err = nfc.Delete(name); err != nil {
 		return err
 	}
-	timeout := time.NewTimer(ChainReadyTimeout)
-	ticker := time.NewTicker(ChainReadyTimeout / 10)
+	timeout := time.NewTimer(ChainDeleteTimeout)
+	ticker := time.NewTicker(ChainDeleteTimeout / 10)
 	defer ticker.Stop()
 	for {
 		// Flush notifies netlink to proceed with prgramming of a chain
 		if err = nfc.conn.Flush(); err == nil {
 			return nil
 		}
-
 		select {
 		case <-timeout.C:
 			return err

@@ -8,8 +8,6 @@ const (
 )
 
 func (r *nfRules) addRule(e *nfRule) {
-	r.Lock()
-	defer r.Unlock()
 	if r.rules == nil {
 		r.rules = e
 		r.rules.next = nil
@@ -42,8 +40,6 @@ func (r *nfRules) removeRule(id uint32) error {
 			if e.prev == nil {
 				if e.next == nil {
 					// Deleting first and the only element in the list
-					r.Lock()
-					defer r.Unlock()
 					r.rules = nil
 					return nil
 				}
