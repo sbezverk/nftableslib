@@ -6,7 +6,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -331,14 +330,14 @@ func main() {
 	fmt.Printf("Finished\n")
 }
 
-func printProgress(family nftables.TableFamily, message string) {
+/* func printProgress(family nftables.TableFamily, message string) {
 	if family == nftables.TableFamilyIPv4 {
 		fmt.Printf("><SB> IPv4: %s\n", message)
 	} else {
 		fmt.Printf("><SB> IPv6: %s\n", message)
 	}
 }
-
+*/
 func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests []setenv.NFTablesTest, stopCh chan struct{}, errCh chan struct{}) error {
 	fmt.Printf("Running tests for family: %+v\n", family)
 	tn := "tableipv4"
@@ -349,16 +348,16 @@ func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests
 	if err := ti.Tables().CreateImm(tn, family); err != nil {
 		return fmt.Errorf("failed to create table %s with error: %+v", tn, err)
 	}
-	printProgress(family, "Table created")
+	// printProgress(family, "Table created")
 	ci, err := ti.Tables().Table(tn, family)
 	if err != nil {
 		return fmt.Errorf("failed to get chains interface for table %s with error: %+v", tn, err)
 	}
 
 	for {
-		for i, test := range tests {
+		for _, test := range tests {
 			if test.Version != family {
-				printProgress(family, fmt.Sprintf("Skip test: %d", i))
+				// printProgress(family, fmt.Sprintf("Skip test: %d", i))
 				continue
 			}
 			fmt.Printf("Running test %s version: %+v \n", test.Name, test.Version)
@@ -368,14 +367,12 @@ func runTests(ti nftableslib.TablesInterface, family nftables.TableFamily, tests
 				errCh <- struct{}{}
 				return err
 			}
-			printProgress(family, fmt.Sprintf("Test: %d completed", i))
-			time.Sleep(time.Second * 2)
 			if err := cleanupTest(ci, test, chainRH); err != nil {
 				fmt.Printf("failed to cleanup for test %s with error: %+v\n", test.Name, err)
 				errCh <- struct{}{}
 				return err
 			}
-			printProgress(family, fmt.Sprintf("Cleanup for test: %d completed", i))
+			// printProgress(family, fmt.Sprintf("Cleanup for test: %d completed", i))
 			select {
 			case <-stopCh:
 				fmt.Printf("Stop received\n")
@@ -394,12 +391,12 @@ func programTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) (map[
 		chains = test.SrcNFRules
 	}
 	chainRH := make(map[string][]uint64)
-	family := test.Version
+	// family := test.Version
 	for _, chain := range chains {
 		if err := ci.Chains().CreateImm(chain.Name, chain.Attr); err != nil {
 			return nil, fmt.Errorf("failed to create chain with error: %+v", err)
 		}
-		printProgress(family, "Chain created")
+		// printProgress(family, "Chain created")
 		ri, err := ci.Chains().Chain(chain.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
@@ -410,7 +407,7 @@ func programTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest) (map[
 			if err != nil {
 				return nil, fmt.Errorf("failed to create rule with error: %+v", err)
 			}
-			printProgress(family, "Rule created")
+			// printProgress(family, "Rule created")
 			// fmt.Printf("Rule with handle %d programmed for chain %s\n", rh, chain.Name)
 			rhs = append(rhs, rh)
 		}
@@ -428,7 +425,6 @@ func cleanupTest(ci nftableslib.ChainsInterface, test setenv.NFTablesTest, chain
 			return fmt.Errorf("failed to get rules interface for chain with error: %+v", err)
 		}
 		for i := len(rhs) - 1; i >= 0; i-- {
-			// fmt.Printf("Attempting to delete rule with handle %d in chain %s\n", rhs[i], chain)
 			if err = ri.Rules().DeleteImm(rhs[i]); err != nil {
 				return fmt.Errorf("failed to delete rule with error: %+v", err)
 			}
