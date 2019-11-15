@@ -33,7 +33,7 @@ type RuleFuncs interface {
 	Create(*Rule) (uint32, error)
 	CreateImm(*Rule) (uint64, error)
 	Delete(uint32) error
-	DeleteImm(uint32) error
+	DeleteImm(uint64) error
 	Insert(*Rule, int) (uint32, error)
 	InsertImm(*Rule, int) (uint64, error)
 	Update(*Rule, uint64) error
@@ -165,6 +165,9 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 }
 
 func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
+	nfr.Lock()
+	defer nfr.Unlock()
+
 	return nfr.create(rule, 0)
 }
 
@@ -195,15 +198,16 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	enc := gob.NewEncoder(buffer)
 	enc.Encode(userData)
 	rr.rule.UserData = buffer.Bytes()
-
-	// Pushing rule to netlink library to be programmed by Flsuh()
+	// Pushing rule to netlink library to be programmed by Fluhs()
 	nfr.conn.AddRule(rr.rule)
 
 	return rr.id, nil
 }
 
 func (nfr *nfRules) CreateImm(rule *Rule) (uint64, error) {
-	id, err := nfr.Create(rule)
+	nfr.Lock()
+	defer nfr.Unlock()
+	id, err := nfr.create(rule, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -223,7 +227,7 @@ func (nfr *nfRules) CreateImm(rule *Rule) (uint64, error) {
 	return handle, nil
 }
 
-func (nfr *nfRules) Delete(id uint32) error {
+func (nfr *nfRules) delete(id uint32) error {
 	r, err := getRuleByID(nfr.rules, id)
 	if err != nil {
 		return err
@@ -239,13 +243,28 @@ func (nfr *nfRules) Delete(id uint32) error {
 	return nfr.removeRule(r.id)
 }
 
-func (nfr *nfRules) DeleteImm(id uint32) error {
-	if err := nfr.Delete(id); err != nil {
+func (nfr *nfRules) Delete(id uint32) error {
+	nfr.Lock()
+	defer nfr.Unlock()
+	return nfr.delete(id)
+}
+
+func (nfr *nfRules) DeleteImm(rh uint64) error {
+	nfr.Lock()
+	defer nfr.Unlock()
+	r, err := getRuleByHandle(nfr.rules, rh)
+	if err != nil {
+		return err
+	}
+	if err := nfr.delete(r.id); err != nil {
+		return err
+	}
+	// Programming rule's deleteion
+	if err := nfr.conn.Flush(); err != nil {
 		return err
 	}
 
-	// Programming rule's deleteion
-	return nfr.conn.Flush()
+	return nil
 }
 
 // Insert inserts a rule passed as a parameter before the rule which handle value matches
@@ -298,10 +317,8 @@ func (nfr *nfRules) Update(rule *Rule, handle uint64) error {
 		r.rule.UserData = buffer.Bytes()
 	}
 	// Updating rule expressions and sets but preserving pointers to prev and next
-	nfrule.Lock()
 	nfrule.rule = r.rule
 	nfrule.sets = r.sets
-	nfrule.Unlock()
 
 	// Pushing rule to netlink library to be programmed by Flush()
 	nfr.conn.AddRule(nfrule.rule)

@@ -108,6 +108,8 @@ func (nft *nfTables) TableSets(name string, familyType nftables.TableFamily) (Se
 
 // Create appends a table into NF tables list
 func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error {
+	nft.Lock()
+	defer nft.Unlock()
 	t, err := nft.create(name, familyType)
 	if err != nil {
 		return err
@@ -118,8 +120,6 @@ func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error 
 }
 
 func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTable, error) {
-	nft.Lock()
-	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
 	if _, ok := nft.tables[familyType]; !ok {
 		nft.tables[familyType] = make(map[string]*nfTable)
@@ -141,9 +141,13 @@ func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTa
 
 // Create appends a table into NF tables list and request to program it immediately
 func (nft *nfTables) CreateImm(name string, familyType nftables.TableFamily) error {
-	if err := nft.Create(name, familyType); err != nil {
+	nft.Lock()
+	defer nft.Unlock()
+	t, err := nft.create(name, familyType)
+	if err != nil {
 		return err
 	}
+	nft.conn.AddTable(t.table)
 
 	return nft.conn.Flush()
 }

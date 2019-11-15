@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
 
 	"golang.org/x/sys/unix"
 
@@ -295,7 +296,16 @@ func main() {
 		},
 	}
 
+	memProf, err := os.Create("/tmp/heap.out")
+	if err != nil {
+		os.Exit(1)
+	}
+	defer memProf.Close()
+	//	if err := pprof.WriteHeapProfile(memProf); err != nil {
+	//		fmt.Printf("Error writing memory profile with error: %+v\n", err)
+	//	}
 	for _, tt := range tests {
+
 		fmt.Printf("+++ Starting test: \"%s\" \n", tt.Name)
 		t, err := setenv.NewP2PTestEnv(tt.Version, tt.Saddr, tt.Daddr)
 		if err != nil {
@@ -345,6 +355,10 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("+++ Finished test: Sync() successfully.\n")
+
+	if err := pprof.WriteHeapProfile(memProf); err != nil {
+		fmt.Printf("Error writing memory profile with error: %+v\n", err)
+	}
 }
 
 func setActionVerdict(key int, chain ...string) *nftableslib.RuleAction {

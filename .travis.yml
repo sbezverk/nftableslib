@@ -15,7 +15,8 @@ script:
   - go vet .
   - go test ./...
   - go test -c github.com/sbezverk/nftableslib
-  - GO111MODULE="on" go build -a -o ./ ./cmd/e2e
+  - GO111MODULE="on" go build -race -a -o ./ ./cmd/e2e
+  - GO111MODULE="on" go build -race -a -o ./ ./cmd/concurrent
   # Disable running e2e test in CI, as it constantly fails.
   # Running locally proved to be successful on multiple platforms
   # - sudo ./e2e
