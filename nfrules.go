@@ -1029,6 +1029,14 @@ func SetLog(key int, value []byte) (*Log, error) {
 	return &Log{Key: uint32(key), Value: value}, nil
 }
 
+// Define States of Connection tracking State key
+var (
+	CTStateNew         uint32 = 0x08000000
+	CTStateRelated     uint32 = 0x04000000
+	CTStateEstablished uint32 = 0x02000000
+	CTStateInvalid     uint32 = 0x01000000
+)
+
 // Conntrack defines a key and  value for Ccnnection tracking
 type Conntrack struct {
 	Key   uint32
