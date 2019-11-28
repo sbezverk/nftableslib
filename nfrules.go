@@ -916,13 +916,6 @@ func SetDNAT(natAttrs *NATAttributes) (*RuleAction, error) {
 	return setNat(expr.NATTypeDestNAT, natAttrs)
 }
 
-const (
-	// NFT_ICMP_REJECT defines Reject type of ICMP
-	NFT_ICMP_REJECT = 0x0
-	// NFT_TCP_REJECT defines Reject type of TCP
-	NFT_TCP_REJECT = 0x1
-)
-
 // SetReject builds RuleAction struct for Reject action, rt defines Reject type ICMP or TCP
 // rc defines ICMP Reject Code
 func SetReject(rt int, rc int) (*RuleAction, error) {
