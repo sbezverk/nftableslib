@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
-	"github.com/google/nftables/expr"
 )
 
 // SetAttributes  defines parameters of a nftables Set
@@ -20,15 +19,22 @@ type SetAttributes struct {
 	DataType nftables.SetDatatype
 }
 
-// IPAddrElement defines key:value of the element of the type nftables.TypeIPAddr
+// ElementValue defines key:value of the element of the type nftables.TypeIPAddr
 // if IPAddrElement is element of a basic set, then only Addr will be specified,
 // if it is element of a map then either Port or AddrIP and if it is element of a vmap, then
 // Verdict.
-type IPAddrElement struct {
-	Addr    string
-	Port    *uint16
-	AddrIP  *string
-	Verdict *expr.Verdict
+type ElementValue struct {
+	Addr   string
+	Port   *uint16
+	AddrIP *string
+	Action *RuleAction
+	// New members
+	Integer     *uint32
+	IPAddr      []byte
+	IP6Addr     []byte
+	EtherAddr   []byte
+	InetProto   *byte
+	InetService *uint16
 }
 
 // SetsInterface defines third level interface operating with nf maps
@@ -176,11 +182,11 @@ func newSets(conn NetNS, t *nftables.Table) SetsInterface {
 	}
 }
 
-// MakeIPAddrElement creates a list of Elements for IPv4 or IPv6 address, slice of IPAddrElement
+// MakeElement creates a list of Elements for IPv4 or IPv6 address, slice of IPAddrElement
 // carries IP address which will be used as a key in the element, and 3 possible values depending on the
 // type of a set. Value could be IP address as a string, Port as uint16 and a nftables.Verdict
 // For IPv4 addresses ipv4 bool should be set to true, otherwise IPv6 addresses are expected.
-func MakeIPAddrElement(input *IPAddrElement) ([]nftables.SetElement, error) {
+func MakeElement(input *ElementValue) ([]nftables.SetElement, error) {
 	addr, err := NewIPAddr(input.Addr)
 	if err != nil {
 		return nil, err
@@ -209,9 +215,82 @@ func MakeIPAddrElement(input *IPAddrElement) ([]nftables.SetElement, error) {
 		p.Val = valAddr.IP
 	case input.Port != nil:
 		p.Val = binaryutil.BigEndian.PutUint16(*input.Port)
-	case input.Verdict != nil:
-		p.VerdictData = input.Verdict
+	case input.Action != nil:
+		p.VerdictData = input.Action.verdict
 	}
 
 	return elements, nil
+}
+
+// MakeConcatElement creates an element of a set/map as a concatination of standard SetDatatypes
+// example: nftables.TypeIPAddr and nftables.TypeInetService
+func MakeConcatElement(keyT1, keyT2 nftables.SetDatatype,
+	keyV1, keyV2 ElementValue, ra *RuleAction) (*nftables.SetElement, error) {
+
+	if ra == nil {
+		return nil, fmt.Errorf("verdict cannot be nil")
+	}
+	element := nftables.SetElement{}
+	p1, err := processElementValue(keyT1, keyV1)
+	if err != nil {
+		return nil, err
+	}
+	p2, err := processElementValue(keyT2, keyV2)
+	if err != nil {
+		return nil, err
+	}
+	// Make sure the slice is aligned to 4 bytes
+	l := len(p1) + len(p2)
+	if l%4 != 0 {
+		l += 4 - (l % 4)
+	}
+	element.Key = make([]byte, l)
+	copy(element.Key, p1)
+	copy(element.Key[len(p1):], p2)
+	element.VerdictData = ra.verdict
+
+	return &element, nil
+}
+
+func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, error) {
+	var b []byte
+	switch keyT {
+	case nftables.TypeInteger:
+		if keyV.Integer == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = binaryutil.BigEndian.PutUint32(*keyV.Integer)
+	case nftables.TypeIPAddr:
+		if keyV.IPAddr == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = make([]byte, len(keyV.IPAddr))
+		copy(b, []byte(keyV.IPAddr))
+	case nftables.TypeIP6Addr:
+		if keyV.IP6Addr == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = make([]byte, len(keyV.IP6Addr))
+		copy(b, []byte(keyV.IP6Addr))
+	case nftables.TypeEtherAddr:
+		if keyV.EtherAddr == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = make([]byte, len(keyV.EtherAddr))
+		copy(b, []byte(keyV.EtherAddr))
+	case nftables.TypeInetProto:
+		if keyV.InetProto == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = []byte{*keyV.InetProto}
+	case nftables.TypeInetService:
+		if keyV.InetService == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = binaryutil.BigEndian.PutUint16(*keyV.InetService)
+	default:
+		return nil, fmt.Errorf("unsupported type of key element %d", keyT.NFTMagic)
+	}
+
+	return b, nil
 }
