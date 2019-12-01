@@ -289,7 +289,7 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 		}
 		b = binaryutil.BigEndian.PutUint16(*keyV.InetService)
 	default:
-		return nil, fmt.Errorf("unsupported type of key element %d", keyT.NFTMagic)
+		return nil, fmt.Errorf("unsupported type of key element %d", keyT.GetNFTMagic())
 	}
 
 	return b, nil
@@ -307,11 +307,11 @@ func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
 	case 1:
 		return types[0]
 	default:
-		c := types[0].NFTMagic
+		c := types[0].GetNFTMagic()
 		b := types[0].Bytes
 		name := types[0].Name + "_"
 		for i := 1; i < len(types); i++ {
-			c = c<<SetConcateTypeBits | types[i].NFTMagic
+			c = c<<SetConcateTypeBits | types[i].GetNFTMagic()
 			b += types[i].Bytes
 			name += types[i].Name
 			if i < len(types) {
@@ -322,10 +322,11 @@ func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
 		if b%4 != 0 {
 			b += 4 - (b % 4)
 		}
-		return nftables.SetDatatype{
-			Name:     name,
-			Bytes:    b,
-			NFTMagic: c,
+		newDatatype := nftables.SetDatatype{
+			Name:  name,
+			Bytes: b,
 		}
+		newDatatype.SetNFTMagic(c)
+		return newDatatype
 	}
 }
