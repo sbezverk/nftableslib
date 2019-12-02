@@ -104,6 +104,8 @@ github.com/google/nftables v0.0.0-20191114152242-14f3137cdeac h1:q8l3UHlWePJUTdZ
 github.com/google/nftables v0.0.0-20191114152242-14f3137cdeac/go.mod h1:cfspEyr/Ap+JDIITA+N9a0ernqG0qZ4W1aqMRgDZa1g=
 github.com/google/nftables v0.0.0-20191115091743-3ba45f5d7848 h1:pd52J7uss/jDgGbQVc73QdoEZ0cR4ft+cEjPbaM4gBE=
 github.com/google/nftables v0.0.0-20191115091743-3ba45f5d7848/go.mod h1:cfspEyr/Ap+JDIITA+N9a0ernqG0qZ4W1aqMRgDZa1g=
+github.com/google/nftables v0.0.0-20191201091042-4f16059f2d43 h1:keZqRFK0x74GIik4LG/ZI7FxGvR4q3L70xjaSS6q5l4=
+github.com/google/nftables v0.0.0-20191201091042-4f16059f2d43/go.mod h1:cfspEyr/Ap+JDIITA+N9a0ernqG0qZ4W1aqMRgDZa1g=
 github.com/google/pprof v0.0.0-20181206194817-3ea8567a2e57/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/pprof v0.0.0-20190515194954-54271f7e092f/go.mod h1:zfwlbNMJ+OItoe0UupaVj+oy1omPYYDuagoSzA8v9mc=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=

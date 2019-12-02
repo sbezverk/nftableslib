@@ -166,7 +166,7 @@ func TestMock(t *testing.T) {
 						List: []*nftableslib.IPAddr{setIPAddr(t, "192.0.2.0")},
 					},
 				},
-				Action: setActionReject(t, nftableslib.NFT_ICMP_REJECT, unix.NFT_REJECT_ICMPX_HOST_UNREACH),
+				Action: setActionReject(t, unix.NFT_REJECT_ICMPX_UNREACH, unix.NFT_REJECT_ICMPX_HOST_UNREACH),
 			},
 			success: true,
 		},

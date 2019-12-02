@@ -82,11 +82,18 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	var sets []*nfSet
 	var set []*nfSet
 	e := []expr.Any{}
+	// Some Rule elements can request to skip processing of certain blocks
+	var skipL3, skipL4, skipAction bool
+	if rule.Concat != nil {
+		if rule.Concat.VMap {
+			skipL3, skipL4, skipAction = true, true, true
+		}
+	}
 	if rule.Fib != nil {
 		e := getExprForFib(rule.Fib)
 		r.Exprs = append(r.Exprs, e...)
 	}
-	if rule.L3 != nil {
+	if rule.L3 != nil && !skipL3 {
 		if e, set, err = createL3(nfr.table.Family, rule); err != nil {
 			return nil, err
 		}
@@ -94,7 +101,7 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		r.Exprs = append(r.Exprs, e...)
 	}
 
-	if rule.L4 != nil {
+	if rule.L4 != nil && !skipL4 {
 		if e, set, err = createL4(nfr.table.Family, rule); err != nil {
 			return nil, err
 		}
@@ -125,7 +132,7 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		r.Exprs = append(r.Exprs, getExprForConntracks(rule.Conntracks)...)
 	}
 
-	if rule.Action != nil {
+	if rule.Action != nil && !skipAction {
 		switch {
 		case rule.Action.redirect != nil:
 			if rule.Action.redirect.tproxy {
@@ -146,6 +153,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			}
 			r.Exprs = append(r.Exprs, e...)
 		}
+	}
+	if rule.Concat != nil {
+		e, err = getExprForConcat(nfr.table.Family, rule.Concat)
+		if err != nil {
+			return nil, err
+		}
+		r.Exprs = append(r.Exprs, e...)
 	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
@@ -916,13 +930,6 @@ func SetDNAT(natAttrs *NATAttributes) (*RuleAction, error) {
 	return setNat(expr.NATTypeDestNAT, natAttrs)
 }
 
-const (
-	// NFT_ICMP_REJECT defines Reject type of ICMP
-	NFT_ICMP_REJECT = 0x0
-	// NFT_TCP_REJECT defines Reject type of TCP
-	NFT_TCP_REJECT = 0x1
-)
-
 // SetReject builds RuleAction struct for Reject action, rt defines Reject type ICMP or TCP
 // rc defines ICMP Reject Code
 func SetReject(rt int, rc int) (*RuleAction, error) {
@@ -1045,6 +1052,7 @@ type Conntrack struct {
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
+	Concat     *Concat
 	Fib        *Fib
 	L3         *L3Rule
 	L4         *L4Rule
