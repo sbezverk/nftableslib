@@ -9,6 +9,6 @@ require (
 	github.com/sbezverk/nftableslib/e2e/setenv v0.0.0-20191010164456-029e0d78cdb1
 	github.com/vishvananda/netlink v1.0.0
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f
-	golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933
-	golang.org/x/sys v0.0.0-20191128015809-6d18c012aee9
+	golang.org/x/net v0.0.0-20191204025024-5ee1b9f4859a
+	golang.org/x/sys v0.0.0-20191204072324-ce4227a45e2e
 )

@@ -146,6 +146,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			r.Exprs = append(r.Exprs, getExprForMasq(rule.Action.masq)...)
 		case rule.Action.reject != nil:
 			r.Exprs = append(r.Exprs, getExprForReject(rule.Action.reject)...)
+		case rule.Action.loadbalance != nil:
+			e, err := getExprForLoadbalance(nfr, rule.Action.loadbalance)
+			if err != nil {
+				return nil, err
+			}
+			// Adding generated loadbalancing expressions and anonymous set
+			r.Exprs = append(r.Exprs, e...)
 		case rule.Action.nat != nil:
 			e, err = getExprForNAT(nfr.table.Family, rule.Action.nat)
 			if err != nil {
@@ -772,6 +779,11 @@ type reject struct {
 	rejectCode uint8
 }
 
+// loadbalance defines action to loadbalance between 1 or more chains
+type loadbalance struct {
+	chains []string
+}
+
 // MetaMark defines Mark keyword of Meta key
 // Mark can be used either to Set or Match a mark.
 // If Set is true, then the Value will be used to mark a packet,
@@ -797,11 +809,26 @@ type Meta struct {
 
 // RuleAction defines what action needs to be executed on the rule match
 type RuleAction struct {
-	verdict  *expr.Verdict
-	redirect *redirect
-	masq     *masquerade
-	nat      *nat
-	reject   *reject
+	verdict     *expr.Verdict
+	redirect    *redirect
+	masq        *masquerade
+	nat         *nat
+	reject      *reject
+	loadbalance *loadbalance
+}
+
+// SetLoadbalance builds RuleAction struct for Verdict based actions
+func SetLoadbalance(chains []string) (*RuleAction, error) {
+	if len(chains) == 0 {
+		return nil, fmt.Errorf("number of chains for loadbalancing cannot be 0")
+	}
+	ra := &RuleAction{
+		loadbalance: &loadbalance{
+			chains: chains,
+		},
+	}
+
+	return ra, nil
 }
 
 // SetVerdict builds RuleAction struct for Verdict based actions
