@@ -687,6 +687,52 @@ func getExprForNAT(l3proto nftables.TableFamily, nat *nat) ([]expr.Any, error) {
 	return re, nil
 }
 
+func getExprForLoadbalance(nfr *nfRules, l *loadbalance) ([]expr.Any, error) {
+	var set *nftables.Set
+	var elements []nftables.SetElement
+	var exprs []expr.Any
+	if len(l.chains) == 0 {
+		return nil, fmt.Errorf("number of chains for loadbalancing cannot be 0")
+	}
+	set = &nftables.Set{
+		Table:     nfr.table,
+		Anonymous: true,
+		Constant:  true,
+		IsMap:     true,
+		KeyType:   nftables.TypeInteger,
+		DataType:  nftables.TypeVerdict,
+	}
+
+	for ind, chain := range l.chains {
+		elements = append(elements, nftables.SetElement{
+			Key: binaryutil.BigEndian.PutUint32(uint32(ind)),
+			VerdictData: &expr.Verdict{
+				Kind:  expr.VerdictKind(int64(unix.NFT_JUMP)),
+				Chain: chain,
+			},
+		})
+	}
+	exprs = append(exprs, &expr.Numgen{
+		Register: 1,
+		Modulus:  uint32(len(l.chains)),
+		Type:     uint32(unix.NFT_NG_RANDOM),
+		Offset:   0,
+	})
+
+	if err := nfr.conn.AddSet(set, elements); err != nil {
+		return nil, err
+	}
+	exprs = append(exprs, &expr.Lookup{
+		SourceRegister: 1,
+		DestRegister:   0,
+		IsDestRegSet:   true,
+		SetID:          set.ID,
+		SetName:        set.Name,
+	})
+
+	return exprs, nil
+}
+
 func buildMask(length int, maskLength uint8) []byte {
 	mask := make([]byte, length)
 	fullBytes := maskLength / 8
