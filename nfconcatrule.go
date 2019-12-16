@@ -32,17 +32,19 @@ type Concat struct {
 }
 
 func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any, error) {
-	var l4OffsetSrc, l4OffsetDst, l3OffsetSrc, l3OffsetDst, l3AddrLen uint32
+	var l3OffsetSrc, l3OffsetDst, l3AddrLen uint32
+	l4OffsetSrc := uint32(0)
+	l4OffsetDst := uint32(2)
 	re := []expr.Any{}
 	switch l3proto {
 	case nftables.TableFamilyIPv4:
 		l3OffsetSrc = 12
 		l3OffsetDst = 16
-		l4OffsetSrc = 0
-		l4OffsetDst = 2
 		l3AddrLen = 4
 	case nftables.TableFamilyIPv6:
-		fallthrough
+		l3OffsetSrc = 8
+		l3OffsetDst = 24
+		l3AddrLen = 16
 	default:
 		return nil, fmt.Errorf("unsupported table family %d", l3proto)
 	}
