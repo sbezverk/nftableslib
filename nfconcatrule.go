@@ -99,7 +99,13 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 			})
 		}
 		if register == 1 {
-			register = 9
+			// Based on debugging of nft cli tool, netfilter expects register 9 for ipv4 case
+			// and register 2 for ipv6
+			if l3proto == nftables.TableFamilyIPv4 {
+				register = 9
+			} else {
+				register = 2
+			}
 		} else {
 			register++
 		}
