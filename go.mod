@@ -4,7 +4,7 @@ go 1.12
 
 require (
 	github.com/google/gopacket v1.1.17
-	github.com/google/nftables v0.0.0-20191213223506-e2e83d0ff597
+	github.com/google/nftables v0.0.0-20191217230200-756cfa14a85e
 	github.com/google/uuid v1.1.1
 	github.com/mdlayher/netlink v1.0.0 // indirect
 	github.com/sbezverk/nftableslib/e2e/setenv v0.0.0-20191010164456-029e0d78cdb1 // indirect
