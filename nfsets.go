@@ -67,9 +67,15 @@ func (nfs *nfSets) Sets() SetFuncs {
 func (nfs *nfSets) CreateSet(attrs *SetAttributes, elements []nftables.SetElement) (*nftables.Set, error) {
 	var err error
 	// TODO Add parameters validation
+	se := []nftables.SetElement{}
 	setInterval := false
 	if attrs.KeyType == nftables.TypeIPAddr || attrs.KeyType == nftables.TypeIP6Addr {
 		setInterval = true
+		if nfs.table.Family == nftables.TableFamilyIPv4 {
+			se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
+		} else {
+			se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
+		}
 	}
 	s := &nftables.Set{
 		Table:     nfs.table,
@@ -82,13 +88,7 @@ func (nfs *nfSets) CreateSet(attrs *SetAttributes, elements []nftables.SetElemen
 		KeyType:   attrs.KeyType,
 		DataType:  attrs.DataType,
 	}
-	// Adding to new Set, provided elements if any provided
-	se := []nftables.SetElement{}
-	if nfs.table.Family == nftables.TableFamilyIPv4 {
-		se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
-	} else {
-		se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
-	}
+	// Adding elements to new Set if any provided
 	se = append(se, elements...)
 	if err = nfs.conn.AddSet(s, elements); err != nil {
 		return nil, err
@@ -295,10 +295,6 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 	return b, nil
 }
 
-// SetConcateTypeBits defines concatinatio bits, originally defined in
-// https://git.netfilter.org/iptables/tree/iptables/nft.c#n999
-const SetConcateTypeBits = 6
-
 // GenSetKeyType generates a composite key type, combining all types
 func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
 	switch len(types) {
@@ -311,7 +307,7 @@ func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
 		b := types[0].Bytes
 		name := types[0].Name + "_"
 		for i := 1; i < len(types); i++ {
-			c = c<<SetConcateTypeBits | types[i].GetNFTMagic()
+			c = c<<nftables.SetConcatTypeBits | types[i].GetNFTMagic()
 			b += types[i].Bytes
 			name += types[i].Name
 			if i < len(types) {
