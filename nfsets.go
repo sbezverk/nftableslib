@@ -224,29 +224,35 @@ func MakeElement(input *ElementValue) ([]nftables.SetElement, error) {
 
 // MakeConcatElement creates an element of a set/map as a concatination of standard SetDatatypes
 // example: nftables.TypeIPAddr and nftables.TypeInetService
-func MakeConcatElement(keyT1, keyT2 nftables.SetDatatype,
-	keyV1, keyV2 ElementValue, ra *RuleAction) (*nftables.SetElement, error) {
-
+func MakeConcatElement(keys []nftables.SetDatatype,
+	vals []ElementValue, ra *RuleAction) (*nftables.SetElement, error) {
 	if ra == nil {
 		return nil, fmt.Errorf("verdict cannot be nil")
 	}
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("number of keys cannot be 0")
+	}
+	if len(keys) != len(vals) {
+		return nil, fmt.Errorf("number of vals does not match number of keys")
+	}
 	element := nftables.SetElement{}
-	p1, err := processElementValue(keyT1, keyV1)
-	if err != nil {
-		return nil, err
+	var key []byte
+	var kl int
+	for i := 0; i < len(keys); i++ {
+		b, err := processElementValue(keys[i], vals[i])
+		if err != nil {
+			return nil, err
+		}
+		key = append(key, b...)
+		kl += len(b)
 	}
-	p2, err := processElementValue(keyT2, keyV2)
-	if err != nil {
-		return nil, err
-	}
+
 	// Make sure the slice is aligned to 4 bytes
-	l := len(p1) + len(p2)
-	if l%4 != 0 {
-		l += 4 - (l % 4)
+	if kl%4 != 0 {
+		kl += 4 - (kl % 4)
 	}
-	element.Key = make([]byte, l)
-	copy(element.Key, p1)
-	copy(element.Key[len(p1):], p2)
+	element.Key = make([]byte, kl)
+	copy(element.Key, key)
 	element.VerdictData = ra.verdict
 
 	return &element, nil
@@ -291,8 +297,15 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 	default:
 		return nil, fmt.Errorf("unsupported type of key element %d", keyT.GetNFTMagic())
 	}
+	// Alignment to 4 bytes
+	l := len(b)
+	if l%4 != 0 {
+		l += 4 - (l % 4)
+	}
+	ba := make([]byte, l)
+	copy(ba, b)
 
-	return b, nil
+	return ba, nil
 }
 
 // GenSetKeyType generates a composite key type, combining all types
