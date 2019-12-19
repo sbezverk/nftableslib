@@ -32,7 +32,7 @@ type Concat struct {
 }
 
 func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any, error) {
-	var l3OffsetSrc, l3OffsetDst, l3AddrLen uint32
+	var l3OffsetSrc, l3OffsetDst, l3AddrLen, l4ProtoOffset uint32
 	l4OffsetSrc := uint32(0)
 	l4OffsetDst := uint32(2)
 	re := []expr.Any{}
@@ -41,26 +41,14 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 		l3OffsetSrc = 12
 		l3OffsetDst = 16
 		l3AddrLen = 4
+		l4ProtoOffset = 9
 	case nftables.TableFamilyIPv6:
 		l3OffsetSrc = 8
 		l3OffsetDst = 24
 		l3AddrLen = 16
+		l4ProtoOffset = 6
 	default:
 		return nil, fmt.Errorf("unsupported table family %d", l3proto)
-	}
-	// If any of the elements is inet_service, then "transport protocol cmp expression" must be added first
-	for _, e := range concat.Elements {
-		if e.EType == nftables.TypeInetService {
-			// [ meta load l4proto => reg 1 ]
-			// [ cmp eq reg 1 0x000000XX ]
-			re = append(re, &expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1})
-			re = append(re, &expr.Cmp{
-				Op:       expr.CmpOpEq,
-				Register: 1,
-				Data:     []byte{e.EProto},
-			})
-			break
-		}
 	}
 	register := uint32(1)
 	for _, e := range concat.Elements {
@@ -83,6 +71,13 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 			})
 		case nftables.TypeEtherAddr:
 		case nftables.TypeInetProto:
+			// [ payload load 1b @ network header + 9 => reg 1 ]
+			re = append(re, &expr.Payload{
+				DestRegister: register,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       l4ProtoOffset,
+				Len:          1,
+			})
 		case nftables.TypeInetService:
 			// [ payload load 2b @ transport header + l4OffsetSrc or l4OffsetDst => reg X ]
 			var offset uint32
@@ -97,6 +92,8 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 				Offset:       offset,
 				Len:          2,
 			})
+		default:
+			return nil, fmt.Errorf("unsupported element type %+v", e.EType)
 		}
 		if register == 1 {
 			// Based on debugging of nft cli tool, netfilter expects register 9 for ipv4 case
