@@ -2,10 +2,12 @@ package nftableslib
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/google/nftables"
+	"golang.org/x/sys/unix"
 )
 
 // TablesInterface defines a top level interface
@@ -110,22 +112,27 @@ func (nft *nfTables) TableSets(name string, familyType nftables.TableFamily) (Se
 func (nft *nfTables) Create(name string, familyType nftables.TableFamily) error {
 	nft.Lock()
 	defer nft.Unlock()
-	t, err := nft.create(name, familyType)
-	if err != nil {
-		return err
-	}
-	nft.conn.AddTable(t.table)
+	nft.conn.AddTable(nft.create(name, familyType).table)
 
 	return nil
 }
 
-func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTable, error) {
-	// Check if nf table with the same family type and name  already exists
-	if _, ok := nft.tables[familyType]; !ok {
+func (nft *nfTables) create(name string, familyType nftables.TableFamily) *nfTable {
+	// Check if tableFamily already allocated
+	if _, ok := nft.tables[familyType]; ok {
+		// Check if table  already exists
+		if _, ok := nft.tables[familyType][name]; ok {
+			// Check if table has ChainsInterface and SetsInterface instantiated
+			if nft.tables[familyType][name].ChainsInterface != nil && nft.tables[familyType][name].SetsInterface != nil {
+				// Table already exists with proper interfaces, no need to do anything
+				return nft.tables[familyType][name]
+			}
+		}
+	} else {
+		// First table for familyType, allocating memory
 		nft.tables[familyType] = make(map[string]*nfTable)
-	} else if _, ok := nft.tables[familyType][name]; ok {
-		return nil, fmt.Errorf("table %s of type %+v already exists", name, familyType)
 	}
+
 	t := &nftables.Table{
 		Family: familyType,
 		Name:   name,
@@ -136,20 +143,21 @@ func (nft *nfTables) create(name string, familyType nftables.TableFamily) (*nfTa
 		SetsInterface:   newSets(nft.conn, t),
 	}
 
-	return nft.tables[familyType][name], nil
+	return nft.tables[familyType][name]
 }
 
 // Create appends a table into NF tables list and request to program it immediately
 func (nft *nfTables) CreateImm(name string, familyType nftables.TableFamily) error {
 	nft.Lock()
 	defer nft.Unlock()
-	t, err := nft.create(name, familyType)
-	if err != nil {
-		return err
+	nft.conn.AddTable(nft.create(name, familyType).table)
+	err := nft.conn.Flush()
+	// If the error indicates that the table already exists, then consider it as a non error
+	if errors.Is(err, unix.EEXIST) {
+		return nil
 	}
-	nft.conn.AddTable(t.table)
 
-	return nft.conn.Flush()
+	return err
 }
 
 // DeleteImm requests nftables module to remove a specified table from the kernel and from NF tables list
@@ -238,10 +246,7 @@ func (nft *nfTables) Sync(familyType nftables.TableFamily) error {
 	for _, t := range nftables {
 		if t.Family == familyType {
 			if _, ok := nft.tables[familyType][t.Name]; !ok {
-				nt, err := nft.create(t.Name, t.Family)
-				if err != nil {
-					return err
-				}
+				nt := nft.create(t.Name, t.Family)
 				// Sync synchronizes all chains discovered in the table
 				if err := nt.Chains().Sync(); err != nil {
 					return err

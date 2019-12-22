@@ -90,10 +90,44 @@ func (nfc *nfChains) Chains() ChainFuncs {
 	return nfc
 }
 
-func (nfc *nfChains) create(name string, attributes *ChainAttributes) error {
-	if _, ok := nfc.chains[name]; ok {
-		return fmt.Errorf("chain %s already exist in table %s", name, nfc.table.Name)
+func isEqualChain(ch *nfChain, attributes *ChainAttributes) bool {
+	// Existing chain does not have nftables.Chain set
+	if ch.chain == nil {
+		return false
 	}
+	// Existing chain does not have valid Rules Interface
+	if ch.RulesInterface == nil {
+		return false
+	}
+	// If existing chain is base chain but request has non nil attributes
+	// then they are not compatible
+	if ch.baseChain && attributes == nil {
+		return false
+	}
+	// If exisiting chain is not a base chain but attributes are specified
+	if !ch.baseChain && attributes != nil {
+		return false
+	}
+	// Attributes must match
+	if attributes != nil {
+		if attributes.Hook != ch.chain.Hooknum ||
+			attributes.Type != ch.chain.Type ||
+			attributes.Priority != ch.chain.Priority {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (nfc *nfChains) create(name string, attributes *ChainAttributes) error {
+	if ch, ok := nfc.chains[name]; ok {
+		if isEqualChain(ch, attributes) {
+			return nil
+		}
+		return fmt.Errorf("nftableslib: chain %s already exist in table %s", name, nfc.table.Name)
+	}
+
 	var baseChain bool
 	var c *nftables.Chain
 	if attributes != nil {
@@ -143,31 +177,34 @@ func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
 	if err := nfc.conn.Flush(); err != nil {
 		return err
 	}
+	/*
+		timeout := time.NewTimer(ChainReadyTimeout)
+		ticker := time.NewTicker(ChainReadyTimeout / 10)
+		defer ticker.Stop()
+		for {
+			// Need to make sure that chain is ready before returning control to the caller
+			ready, err := nfc.Ready(name)
+			if err != nil {
+				// Checking for Readiness failed, removing the chain from the store
+				// and return error to the caller
+				nfc.Delete(name)
+				return err
+			}
+			if ready {
+				timeout.Stop()
+				return nil
+			}
+			select {
+			case <-timeout.C:
+				nfc.Delete(name)
+				return fmt.Errorf("timeout waiting for chain %s to become ready, last error: %+v", name, err)
+			case <-ticker.C:
+				continue
+			}
+		}
+	*/
 
-	timeout := time.NewTimer(ChainReadyTimeout)
-	ticker := time.NewTicker(ChainReadyTimeout / 10)
-	defer ticker.Stop()
-	for {
-		// Need to make sure that chain is ready before returning control to the caller
-		ready, err := nfc.Ready(name)
-		if err != nil {
-			// Checking for Readiness failed, removing the chain from the store
-			// and return error to the caller
-			nfc.Delete(name)
-			return err
-		}
-		if ready {
-			timeout.Stop()
-			return nil
-		}
-		select {
-		case <-timeout.C:
-			nfc.Delete(name)
-			return fmt.Errorf("timeout waiting for chain %s to become ready, last error: %+v", name, err)
-		case <-ticker.C:
-			continue
-		}
-	}
+	return nil
 }
 
 func (nfc *nfChains) Delete(name string) error {

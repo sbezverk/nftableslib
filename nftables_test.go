@@ -58,21 +58,6 @@ func TestDeleteNFTable(t *testing.T) {
 	}
 }
 
-func TestCreateExistingNFTable(t *testing.T) {
-	conn := InitConn()
-	if conn == nil {
-		t.Fatal("initialization of netlink connection failed")
-	}
-	nft := InitNFTables(conn)
-	if err := nft.Tables().Create("filter", nftables.TableFamilyIPv4); err != nil {
-		t.Fatalf("test \"TestCreateExistingNFTable\" failed to create table filter with error: %+v", err)
-	}
-	// Attempting to create the same table
-	if err := nft.Tables().Create("filter", nftables.TableFamilyIPv4); err == nil {
-		t.Fatalf("test \"TestCreateExistingNFTable\" failed as creation of the table was expected to fail but it has succeeded")
-	}
-}
-
 func BenchmarkCreateTable(b *testing.B) {
 	conn := InitConn()
 	if conn == nil {
