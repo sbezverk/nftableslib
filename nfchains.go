@@ -2,11 +2,13 @@ package nftableslib
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/nftables"
+	"golang.org/x/sys/unix"
 )
 
 // ChainsInterface defines third level interface operating with nf chains
@@ -177,32 +179,6 @@ func (nfc *nfChains) CreateImm(name string, attributes *ChainAttributes) error {
 	if err := nfc.conn.Flush(); err != nil {
 		return err
 	}
-	/*
-		timeout := time.NewTimer(ChainReadyTimeout)
-		ticker := time.NewTicker(ChainReadyTimeout / 10)
-		defer ticker.Stop()
-		for {
-			// Need to make sure that chain is ready before returning control to the caller
-			ready, err := nfc.Ready(name)
-			if err != nil {
-				// Checking for Readiness failed, removing the chain from the store
-				// and return error to the caller
-				nfc.Delete(name)
-				return err
-			}
-			if ready {
-				timeout.Stop()
-				return nil
-			}
-			select {
-			case <-timeout.C:
-				nfc.Delete(name)
-				return fmt.Errorf("timeout waiting for chain %s to become ready, last error: %+v", name, err)
-			case <-ticker.C:
-				continue
-			}
-		}
-	*/
 
 	return nil
 }
@@ -213,23 +189,35 @@ func (nfc *nfChains) Delete(name string) error {
 	if ch, ok := nfc.chains[name]; ok {
 		nfc.conn.DelChain(ch.chain)
 		delete(nfc.chains, name)
+	} else {
+		return fmt.Errorf("chain %s does not exists", name)
 	}
 
 	return nil
 }
 
 func (nfc *nfChains) DeleteImm(name string) error {
-	var err error
-	if err = nfc.Delete(name); err != nil {
-		return err
+	nfc.Lock()
+	defer nfc.Unlock()
+	ch, ok := nfc.chains[name]
+	if !ok {
+		return fmt.Errorf("chain %s does not exists", name)
 	}
+
+	var err error
 	timeout := time.NewTimer(ChainDeleteTimeout)
 	ticker := time.NewTicker(ChainDeleteTimeout / 10)
 	defer ticker.Stop()
 	for {
-		// Flush notifies netlink to proceed with prgramming of a chain
+		// Flush notifies netlink to proceed with removing of a chain
+		nfc.conn.DelChain(ch.chain)
 		if err = nfc.conn.Flush(); err == nil {
+			delete(nfc.chains, name)
 			return nil
+		}
+		// If error indicates that the chain is busy
+		if !errors.Is(err, unix.EBUSY) {
+			return err
 		}
 		select {
 		case <-timeout.C:
