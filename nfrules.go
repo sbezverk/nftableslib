@@ -219,7 +219,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	enc := gob.NewEncoder(buffer)
 	enc.Encode(userData)
 	rr.rule.UserData = buffer.Bytes()
-	// Pushing rule to netlink library to be programmed by Fluhs()
+	// Pushing rule to netlink library to be programmed by Flush()
 	nfr.conn.AddRule(rr.rule)
 
 	return rr.id, nil
