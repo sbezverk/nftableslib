@@ -15,6 +15,8 @@ type NetNS interface {
 	DelChain(*nftables.Chain)
 	ListChains() ([]*nftables.Chain, error)
 	AddRule(*nftables.Rule) *nftables.Rule
+	InsertRule(*nftables.Rule) *nftables.Rule
+	ReplaceRule(*nftables.Rule) *nftables.Rule
 	DelRule(*nftables.Rule) error
 	GetRule(*nftables.Table, *nftables.Chain) ([]*nftables.Rule, error)
 	AddSet(*nftables.Set, []nftables.SetElement) error

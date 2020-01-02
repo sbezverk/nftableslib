@@ -23,6 +23,14 @@ const (
 	NFT_ACCEPT = 0x1
 )
 
+type ruleOperation uint32
+
+const (
+	operationAdd ruleOperation = iota
+	operationInsert
+	operationReplace
+)
+
 // RulesInterface defines third level interface operating with nf Rules
 type RulesInterface interface {
 	Rules() RuleFuncs
@@ -34,8 +42,8 @@ type RuleFuncs interface {
 	CreateImm(*Rule) (uint64, error)
 	Delete(uint32) error
 	DeleteImm(uint64) error
-	Insert(*Rule, int) (uint32, error)
-	InsertImm(*Rule, int) (uint64, error)
+	Insert(*Rule) (uint32, error)
+	InsertImm(*Rule) (uint64, error)
 	Update(*Rule, uint64) error
 	Dump() ([]byte, error)
 	Sync() error
@@ -189,10 +197,10 @@ func (nfr *nfRules) Create(rule *Rule) (uint32, error) {
 	nfr.Lock()
 	defer nfr.Unlock()
 
-	return nfr.create(rule, 0)
+	return nfr.create(rule, operationAdd)
 }
 
-func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
+func (nfr *nfRules) create(rule *Rule, ruleOp ruleOperation) (uint32, error) {
 	// Process all user specified expressions and return nfRule
 	rr, err := nfr.buildRule(rule)
 	if err != nil {
@@ -200,9 +208,9 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	}
 	// Adding nfRule to the list
 	nfr.addRule(rr)
-	if position != 0 {
+	if rule.Position != 0 {
 		// Used by Insert call
-		rr.rule.Position = uint64(position)
+		rr.rule.Position = uint64(rule.Position)
 	}
 	// Allocating UserData struct for ruleID
 	userData := &nfUserData{
@@ -220,7 +228,12 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 	enc.Encode(userData)
 	rr.rule.UserData = buffer.Bytes()
 	// Pushing rule to netlink library to be programmed by Flush()
-	nfr.conn.AddRule(rr.rule)
+	switch ruleOp {
+	case operationAdd:
+		nfr.conn.AddRule(rr.rule)
+	case operationInsert:
+		nfr.conn.InsertRule(rr.rule)
+	}
 
 	return rr.id, nil
 }
@@ -228,7 +241,7 @@ func (nfr *nfRules) create(rule *Rule, position int) (uint32, error) {
 func (nfr *nfRules) CreateImm(rule *Rule) (uint64, error) {
 	nfr.Lock()
 	defer nfr.Unlock()
-	id, err := nfr.create(rule, 0)
+	id, err := nfr.create(rule, operationAdd)
 	if err != nil {
 		return 0, err
 	}
@@ -289,14 +302,14 @@ func (nfr *nfRules) DeleteImm(rh uint64) error {
 }
 
 // Insert inserts a rule passed as a parameter before the rule which handle value matches
-// the value of position passed as an argument.
+// the value of position passed in Rule.Position.
 // Example: rule1 has handle of 5, you want to insert rule2 before rule1, then position for rule2 will be 5
-func (nfr *nfRules) Insert(rule *Rule, position int) (uint32, error) {
-	return nfr.create(rule, position)
+func (nfr *nfRules) Insert(rule *Rule) (uint32, error) {
+	return nfr.create(rule, operationInsert)
 }
 
-func (nfr *nfRules) InsertImm(rule *Rule, position int) (uint64, error) {
-	id, err := nfr.Insert(rule, position)
+func (nfr *nfRules) InsertImm(rule *Rule) (uint64, error) {
+	id, err := nfr.Insert(rule)
 	if err != nil {
 		return 0, err
 	}
@@ -1089,6 +1102,14 @@ type Rule struct {
 	RelOp      Operator
 	Action     *RuleAction
 	UserData   []byte
+	// Position identifies the desired position of the rule, depending on the operation
+	// Add, Insert or Replace, the resulting position may vary.
+	// AddRule with position 0, will add a rule to the end of the chain
+	// AddRule with position != 0, will add a rule right after the rule with specified position
+	// InsertRule with position 0 will insert a rule at the beginning of the chain
+	// InsertRule with position != 0 will insert a rule right before the rule with specified position
+	// Replace operation with position 0 will fail.
+	Position int
 }
 
 // Validate checks parameters passed in struct and returns error if inconsistency is found
