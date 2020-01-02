@@ -11,6 +11,8 @@ import (
 	"github.com/google/nftables/expr"
 )
 
+// TODO Add check for nil pointers
+
 func ifname(n string) []byte {
 	b := make([]byte, 16)
 	copy(b, []byte(n+"\x00"))
@@ -41,6 +43,9 @@ func outputIntfByName(intf string) []expr.Any {
 
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
 func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, op Operator) ([]expr.Any, error) {
+	if addr == nil {
+		return nil, fmt.Errorf("ip address cannot be nil")
+	}
 	re := []expr.Any{}
 	addrLen := 4
 	if l3proto == nftables.TableFamilyIPv6 {
@@ -113,6 +118,9 @@ func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset ui
 
 // getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
 func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, op Operator) ([]expr.Any, error) {
+	if rng[0] == nil || rng[1] == nil {
+		return nil, fmt.Errorf("ip address cannot be nil")
+	}
 	re := []expr.Any{}
 
 	addrLen := 4

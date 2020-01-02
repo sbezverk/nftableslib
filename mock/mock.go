@@ -34,6 +34,16 @@ func (m *Mock) DelRule(*nftables.Rule) error {
 	return nil
 }
 
+// InsertRule not used
+func (m *Mock) InsertRule(r *nftables.Rule) *nftables.Rule {
+	return r
+}
+
+// ReplaceRule not used
+func (m *Mock) ReplaceRule(r *nftables.Rule) *nftables.Rule {
+	return r
+}
+
 // DelTable not used
 func (m *Mock) DelTable(t *nftables.Table) {
 }
