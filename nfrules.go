@@ -1,14 +1,13 @@
 package nftableslib
 
 import (
-	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"net"
 	"sync"
 
 	"github.com/google/nftables"
+	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
@@ -212,21 +211,22 @@ func (nfr *nfRules) create(rule *Rule, ruleOp ruleOperation) (uint32, error) {
 		// Used by Insert call
 		rr.rule.Position = uint64(rule.Position)
 	}
-	// Allocating UserData struct for ruleID
-	userData := &nfUserData{
-		// rule's ID is populated by fr.addRule(rr)
-		RuleID: rr.id,
-	}
-	// If higher level app passes some arbitrary metadata for the rule, store it to nfUserData appData
+	// If user passes UserData, then first 2 bytes define length of user data, +1 for tailing 0x0
+	// also Userdata must be aligned to 4 bytes border
+	var userData []byte
 	if rule.UserData != nil {
-		userData.AppData = make([]byte, len(rule.UserData))
-		copy(userData.AppData, rule.UserData)
+		userData = append(userData, binaryutil.BigEndian.PutUint16(uint16(len(rule.UserData)+1))...)
+		userData = append(userData, rule.UserData...)
+		userData = append(userData, byte(0x0))
+		// Must align to 4 bytes border, +2 is included to account for 2 bytes of actual User data length
+		if remainder := len(userData) % 4; remainder != 0 {
+			userData = append(userData, make([]byte, 4-remainder)...)
+		}
 	}
-	// Encoding nfUserData into []byte to send as nftables.UserData
-	buffer := new(bytes.Buffer)
-	enc := gob.NewEncoder(buffer)
-	enc.Encode(userData)
-	rr.rule.UserData = buffer.Bytes()
+	userData = append(userData, binaryutil.BigEndian.PutUint32(rr.id)...)
+	rr.rule.UserData = make([]byte, len(userData))
+	copy(rr.rule.UserData, userData)
+
 	// Pushing rule to netlink library to be programmed by Flush()
 	switch ruleOp {
 	case operationAdd:
@@ -339,17 +339,22 @@ func (nfr *nfRules) Update(rule *Rule, handle uint64) error {
 		return err
 	}
 	r.rule.Handle = handle
-	// If higher level app passes some arbitrary metadata for the rule, store it to nfUserData appData
+	// If user passes UserData, then first 2 bytes define length of user data, +1 for tailing 0x0
+	// also Userdata must be aligned to 4 bytes border
+	var userData []byte
 	if rule.UserData != nil {
-		userData := &nfUserData{}
-		userData.AppData = make([]byte, len(rule.UserData))
-		copy(userData.AppData, rule.UserData)
-		// Encoding nfUserData into []byte to send as nftables.UserData
-		buffer := new(bytes.Buffer)
-		enc := gob.NewEncoder(buffer)
-		enc.Encode(userData)
-		r.rule.UserData = buffer.Bytes()
+		userData = append(userData, binaryutil.BigEndian.PutUint16(uint16(len(rule.UserData)+1))...)
+		userData = append(userData, rule.UserData...)
+		userData = append(userData, byte(0x0))
+		// Must align to 4 bytes border, +2 is included to account for 2 bytes of actual User data length
+		if remainder := len(userData) % 4; remainder != 0 {
+			userData = append(userData, make([]byte, 4-remainder)...)
+		}
+		userData = append(userData, binaryutil.BigEndian.PutUint32(r.id)...)
+		r.rule.UserData = make([]byte, len(userData))
+		copy(r.rule.UserData, userData)
 	}
+
 	// Updating rule expressions and sets but preserving pointers to prev and next
 	nfrule.rule = r.rule
 	nfrule.sets = r.sets
@@ -476,13 +481,9 @@ func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
 	}
 	for _, rule := range rules {
 		if rule.UserData != nil {
-			userData := nfUserData{}
-			dr := bytes.NewReader(rule.UserData)
-			dec := gob.NewDecoder(dr)
-			if err := dec.Decode(&userData); err != nil {
-				return 0, err
-			}
-			if userData.RuleID == id {
+			// Rule ID is stored in last 4 bytes of User data
+			ruleID := binaryutil.BigEndian.Uint32(rule.UserData[len(rule.UserData)-4:])
+			if ruleID == id {
 				return rule.Handle, nil
 			}
 		}
@@ -499,19 +500,11 @@ func (nfr *nfRules) GetRulesUserData() (map[uint64][]byte, error) {
 	ud := make(map[uint64][]byte, 0)
 	for _, rule := range rules {
 		if rule.UserData != nil {
-			userData := &nfUserData{}
-			dr := bytes.NewReader(rule.UserData)
-			dec := gob.NewDecoder(dr)
-			if err := dec.Decode(userData); err != nil {
-				return nil, err
-			}
-			// If rule has some application specific data, return it in the map with rule's
-			// handle as a key
-			if userData.AppData != nil {
-				ud[rule.Handle] = userData.AppData
-			}
+			// Skip first 2 bytes as they encode user data length -1 (extra 0x0 byte)
+			ud[rule.Handle] = rule.UserData[2 : binaryutil.BigEndian.Uint32(rule.UserData[0:2])-1]
 		}
 	}
+
 	return ud, nil
 }
 
