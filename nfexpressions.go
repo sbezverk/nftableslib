@@ -11,8 +11,6 @@ import (
 	"github.com/google/nftables/expr"
 )
 
-// TODO Add check for nil pointers
-
 func ifname(n string) []byte {
 	b := make([]byte, 16)
 	copy(b, []byte(n+"\x00"))
@@ -90,6 +88,9 @@ func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAdd
 
 // getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
 func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset uint32, op Operator) ([]expr.Any, error) {
+	if set == nil {
+		return nil, fmt.Errorf("set *nftables.Set cannot be nil")
+	}
 	re := []expr.Any{}
 
 	addrLen := 4
@@ -119,7 +120,7 @@ func getExprForListIP(l3proto nftables.TableFamily, set *nftables.Set, offset ui
 // getExprForRangeIP returns expression to match a range of IPv4 or IPv6 addresses
 func getExprForRangeIP(l3proto nftables.TableFamily, offset uint32, rng [2]*IPAddr, op Operator) ([]expr.Any, error) {
 	if rng[0] == nil || rng[1] == nil {
-		return nil, fmt.Errorf("ip address cannot be nil")
+		return nil, fmt.Errorf("ip address in the range cannot be nil")
 	}
 	re := []expr.Any{}
 
@@ -188,6 +189,15 @@ func getExprForRedirectPort(portToRedirect uint16) []expr.Any {
 }
 
 func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, op Operator, set *nftables.Set) ([]expr.Any, error) {
+	if set == nil {
+		return nil, fmt.Errorf("set *nftables.Set cannot be nil")
+	}
+	// Slice port may carry nil pointer element, checking all elements of the slice that it is not the case
+	for i, p := range port {
+		if p == nil {
+			return nil, fmt.Errorf("port[%d] carries nil pointer", i)
+		}
+	}
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}
@@ -258,6 +268,12 @@ func getExprForRedirect(port uint16, family nftables.TableFamily) []expr.Any {
 }
 
 func getExprForRangePort(l4proto uint8, offset uint32, port [2]*uint16, op Operator) ([]expr.Any, error) {
+	// Slice port may carry nil pointer element, checking all elements of the slice that it is not the case
+	for i, p := range port {
+		if p == nil {
+			return nil, fmt.Errorf("port[%d] carries nil pointer", i)
+		}
+	}
 	// [ meta load l4proto => reg 1 ]
 	// [ cmp eq reg 1 0x00000006 ]
 	// [ payload load 2b @ transport header + 0 => reg 1 ]
@@ -370,6 +386,9 @@ func getExprForProtocol(l3proto nftables.TableFamily, proto uint32, op Operator)
 }
 
 func getExprForMetaMark(mark *MetaMark) []expr.Any {
+	if mark == nil {
+		return []expr.Any{}
+	}
 	re := []expr.Any{}
 	if mark.Set {
 		// [ immediate reg 1 0x0000dead ]
@@ -408,6 +427,9 @@ func getExprForMetaExpr(meta []MetaExpr) []expr.Any {
 }
 
 func getExprForMasq(masq *masquerade) []expr.Any {
+	if masq == nil {
+		return []expr.Any{}
+	}
 	re := []expr.Any{}
 	// Since masquerade flags and toPort are mutually exclusive, each case will generate different sequence of
 	// expressions
@@ -446,6 +468,9 @@ func getExprForMasq(masq *masquerade) []expr.Any {
 }
 
 func getExprForLog(log *Log) []expr.Any {
+	if log == nil {
+		return []expr.Any{}
+	}
 	re := []expr.Any{}
 	re = append(re, &expr.Log{Key: log.Key, Data: log.Value})
 
@@ -453,6 +478,9 @@ func getExprForLog(log *Log) []expr.Any {
 }
 
 func getExprForReject(r *reject) []expr.Any {
+	if r == nil {
+		return []expr.Any{}
+	}
 	re := []expr.Any{}
 	re = append(re, &expr.Reject{Type: r.rejectType, Code: r.rejectCode})
 
@@ -460,6 +488,9 @@ func getExprForReject(r *reject) []expr.Any {
 }
 
 func getExprForFib(f *Fib) []expr.Any {
+	if f == nil {
+		return []expr.Any{}
+	}
 	// [ fib daddr type => reg 1 ]
 	// [ cmp eq reg 1 0x00000002 ]
 	re := []expr.Any{}
@@ -497,6 +528,10 @@ func getExprForFib(f *Fib) []expr.Any {
 func getExprForConntracks(cts []*Conntrack) []expr.Any {
 	re := []expr.Any{}
 	for _, ct := range cts {
+		if ct == nil {
+			// Skipping nil pointers
+			continue
+		}
 		switch ct.Key {
 		// List of supported conntrack keys
 		case unix.NFT_CT_STATE:
@@ -527,6 +562,9 @@ func getExprForConntracks(cts []*Conntrack) []expr.Any {
 }
 
 func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	if set == nil {
+		return nil, fmt.Errorf("set *SetRef cannot be nil")
+	}
 	if l4proto == 0 {
 		return nil, fmt.Errorf("l4 protocol is 0")
 	}
@@ -565,8 +603,10 @@ func getExprForPortSet(l4proto uint8, offset uint32, set *SetRef, op Operator) (
 
 // getExprForListIP returns expression to match a list of IPv4 or IPv6 addresses
 func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef, op Operator) ([]expr.Any, error) {
+	if set == nil {
+		return nil, fmt.Errorf("set *SetRef cannot be nil")
+	}
 	re := []expr.Any{}
-
 	addrLen := 4
 	if l3proto == nftables.TableFamilyIPv6 {
 		addrLen = 16
@@ -598,6 +638,9 @@ func getExprForAddrSet(l3proto nftables.TableFamily, offset uint32, set *SetRef,
 
 // getExprForSNAT returns expression for nat statement
 func getExprForNAT(l3proto nftables.TableFamily, nat *nat) ([]expr.Any, error) {
+	if nat == nil {
+		return nil, fmt.Errorf("nat cannot be nil")
+	}
 	re := []expr.Any{}
 
 	// TODO, move validation to Validation method
@@ -696,6 +739,9 @@ func getExprForNAT(l3proto nftables.TableFamily, nat *nat) ([]expr.Any, error) {
 }
 
 func getExprForLoadbalance(nfr *nfRules, l *loadbalance) ([]expr.Any, error) {
+	if nfr == nil || l == nil {
+		return nil, fmt.Errorf("nil pointer found in passed parameters, nfRules: %+v loadbalance: %+v", nfr, l)
+	}
 	var set *nftables.Set
 	var elements []nftables.SetElement
 	var exprs []expr.Any
