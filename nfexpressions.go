@@ -189,9 +189,6 @@ func getExprForRedirectPort(portToRedirect uint16) []expr.Any {
 }
 
 func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, op Operator, set *nftables.Set) ([]expr.Any, error) {
-	if set == nil {
-		return nil, fmt.Errorf("set *nftables.Set cannot be nil")
-	}
 	// Slice port may carry nil pointer element, checking all elements of the slice that it is not the case
 	for i, p := range port {
 		if p == nil {
@@ -219,6 +216,9 @@ func getExprForListPort(l4proto uint8, offset uint32, port []*uint16, op Operato
 		excl = true
 	}
 	if len(port) > 1 {
+		if set == nil {
+			return nil, fmt.Errorf("set *nftables.Set cannot be nil")
+		}
 		// Multi port is accomplished as a lookup
 		re = append(re, &expr.Lookup{
 			SourceRegister: 1,
