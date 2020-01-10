@@ -310,32 +310,47 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 
 // GenSetKeyType generates a composite key type, combining all types
 func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
+	newDatatype := nftables.SetDatatype{}
 	switch len(types) {
 	case 0:
 		return nftables.TypeInvalid
 	case 1:
-		return types[0]
+		newDatatype.Name = types[0].Name
+		newDatatype.SetNFTMagic(types[0].GetNFTMagic())
+		if types[0].Bytes <= 4 {
+			newDatatype.Bytes = 4
+		} else {
+			if types[0].Bytes%4 != 0 {
+				newDatatype.Bytes = types[0].Bytes
+				newDatatype.Bytes += 4 - (types[0].Bytes % 4)
+			} else {
+				newDatatype.Bytes = types[0].Bytes
+			}
+		}
+		return newDatatype
 	default:
-		c := types[0].GetNFTMagic()
-		b := types[0].Bytes
-		name := types[0].Name + "_"
-		for i := 1; i < len(types); i++ {
+		var c, b uint32
+		name := "concat"
+		for i := 0; i < len(types); i++ {
+			name += "_" + types[i].Name
 			c = c<<nftables.SetConcatTypeBits | types[i].GetNFTMagic()
-			b += types[i].Bytes
+			if types[i].Bytes <= 4 {
+				b += 4
+			} else {
+				if types[i].Bytes%4 != 0 {
+					b += types[i].Bytes
+					b += 4 - (types[i].Bytes % 4)
+				}
+			}
 			name += types[i].Name
 			if i < len(types) {
 				name += "_"
 			}
 		}
-		// Alignment to 4 bytes
-		if b%4 != 0 {
-			b += 4 - (b % 4)
-		}
-		newDatatype := nftables.SetDatatype{
-			Name:  name,
-			Bytes: b,
-		}
+		newDatatype.Name = name
+		newDatatype.Bytes = b
 		newDatatype.SetNFTMagic(c)
+
 		return newDatatype
 	}
 }
