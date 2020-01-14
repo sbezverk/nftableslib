@@ -200,13 +200,7 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 	}
 	for _, table := range tables {
 		if table == name {
-			// Found a table missing from the store, adding it
-			// Sync will load all missing tables of a specific Family into the store,
-			// TODO Consider creating SyncTable(name, familyType) function.
-			if err := nft.Sync(familyType); err == nil {
-				return true
-			}
-			break
+			return true
 		}
 	}
 
