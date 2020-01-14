@@ -7,6 +7,7 @@ import (
 )
 
 func TestCreateTable(t *testing.T) {
+	t.Log("TestCreateTable")
 	conn := InitConn()
 	if conn == nil {
 		t.Fatal("initialization of netlink connection failed")
@@ -19,6 +20,7 @@ func TestCreateTable(t *testing.T) {
 }
 
 func TestCreateMultipleTable(t *testing.T) {
+	t.Log("TestCreateMultipleTable")
 	conn := InitConn()
 	if conn == nil {
 		t.Fatal("initialization of netlink connection failed")
@@ -45,6 +47,7 @@ func TestCreateMultipleTable(t *testing.T) {
 }
 
 func TestDeleteNFTable(t *testing.T) {
+	t.Log("TestDeleteNFTable")
 	conn := InitConn()
 	if conn == nil {
 		t.Fatal("initialization of netlink connection failed")
