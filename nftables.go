@@ -175,9 +175,14 @@ func (nft *nfTables) Delete(name string, familyType nftables.TableFamily) error 
 	defer nft.Unlock()
 	// Check if nf table with the same family type and name  already exists
 	if _, ok := nft.tables[familyType][name]; ok {
-		nft.conn.DelTable(nft.tables[familyType][name].table)
 		// Removing old table, at this point, this table should be removed from the kernel as well.
 		delete(nft.tables[familyType], name)
+	}
+	if nft.Tables().Exist(name, familyType) {
+		nft.conn.DelTable(&nftables.Table{
+			Name:   name,
+			Family: familyType,
+		})
 	}
 	// If no more tables exists under a specific family name, removing  family type.
 	if len(nft.tables[familyType]) == 0 {
@@ -194,19 +199,13 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 		return true
 	}
 	// It is not in the store, let's double check if it exists on the host
-	tables, err := nft.Get(familyType)
+	tables, err := nft.get(familyType)
 	if err != nil {
 		return false
 	}
 	for _, table := range tables {
 		if table == name {
-			// Found a table missing from the store, adding it
-			// Sync will load all missing tables of a specific Family into the store,
-			// TODO Consider creating SyncTable(name, familyType) function.
-			if err := nft.Sync(familyType); err == nil {
-				return true
-			}
-			break
+			return true
 		}
 	}
 
@@ -217,6 +216,11 @@ func (nft *nfTables) Exist(name string, familyType nftables.TableFamily) bool {
 func (nft *nfTables) Get(familyType nftables.TableFamily) ([]string, error) {
 	nft.Lock()
 	defer nft.Unlock()
+
+	return nft.get(familyType)
+}
+
+func (nft *nfTables) get(familyType nftables.TableFamily) ([]string, error) {
 	nftables, err := nft.conn.ListTables()
 	if err != nil {
 		return nil, err
