@@ -113,16 +113,12 @@ func (nfs *nfSets) Exist(name string) bool {
 	if !ok {
 		return false
 	}
-	sets, err := nfs.GetSets()
+	_, err := nfs.conn.GetSetByName(nfs.table, name)
 	if err != nil {
 		return false
 	}
-	for _, s := range sets {
-		if s.Name == name {
-			return true
-		}
-	}
-	return false
+
+	return true
 }
 
 func (nfs *nfSets) DelSet(name string) error {
