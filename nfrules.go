@@ -96,6 +96,12 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			skipL3, skipL4, skipAction = true, true, true
 		}
 	}
+	// TODO, Counter may appear in different positions in the rule
+	// to figure out a more flexible approach to position counter.
+	if rule.Counter != nil {
+		e := getExprForCounter()
+		r.Exprs = append(r.Exprs, e...)
+	}
 	if rule.Fib != nil {
 		e := getExprForFib(rule.Fib)
 		r.Exprs = append(r.Exprs, e...)
@@ -788,6 +794,8 @@ type reject struct {
 // loadbalance defines action to loadbalance between 1 or more chains
 type loadbalance struct {
 	chains []string
+	action int
+	mode   int
 }
 
 // MetaMark defines Mark keyword of Meta key
@@ -823,14 +831,19 @@ type RuleAction struct {
 	loadbalance *loadbalance
 }
 
-// SetLoadbalance builds RuleAction struct for Verdict based actions
-func SetLoadbalance(chains []string) (*RuleAction, error) {
+// SetLoadbalance builds RuleAction struct for Verdict based actions,
+// action parameter defines whether unix.NFT_JUMP (default) or unix.NFT_GOTO will be used to reach one of
+// load balanced chains
+// mode parameters defines the mode of load balancing between the chains; unix.NFT_NG_RANDOM (default)
+// or unix.NFT_NG_INCREMENTAL.
+func SetLoadbalance(chains []string, action int, mode int) (*RuleAction, error) {
 	if len(chains) == 0 {
 		return nil, fmt.Errorf("number of chains for loadbalancing cannot be 0")
 	}
 	ra := &RuleAction{
 		loadbalance: &loadbalance{
 			chains: chains,
+			action: action,
 		},
 	}
 
@@ -1026,6 +1039,10 @@ type Log struct {
 	Value []byte
 }
 
+// Counter indicates a presence of a counter object in the rule
+type Counter struct {
+}
+
 // Fib defines nftables Fib expression. Results and Flags can have multiple selections.
 // Data is a slice of bytes, its content depends up on Result and Flags combination.
 // Example: if fib expression specifies a particular address type, then Data would carry one of
@@ -1093,6 +1110,7 @@ type Rule struct {
 	Meta       *Meta
 	Log        *Log
 	RelOp      Operator
+	Counter    *Counter
 	Action     *RuleAction
 	UserData   []byte
 	// Position identifies the desired position of the rule, depending on the operation

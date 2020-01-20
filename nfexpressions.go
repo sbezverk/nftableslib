@@ -40,6 +40,13 @@ func outputIntfByName(intf string) []expr.Any {
 }
 
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
+func getExprForCounter() []expr.Any {
+	return []expr.Any{
+		&expr.Counter{},
+	}
+}
+
+// getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
 func getExprForSingleIP(l3proto nftables.TableFamily, offset uint32, addr *IPAddr, op Operator) ([]expr.Any, error) {
 	if addr == nil {
 		return nil, fmt.Errorf("ip address cannot be nil")
@@ -756,12 +763,19 @@ func getExprForLoadbalance(nfr *nfRules, l *loadbalance) ([]expr.Any, error) {
 		KeyType:   nftables.TypeInteger,
 		DataType:  nftables.TypeVerdict,
 	}
-
+	action := int64(unix.NFT_JUMP)
+	if l.action == unix.NFT_GOTO {
+		action = int64(unix.NFT_GOTO)
+	}
+	mode := uint32(unix.NFT_NG_RANDOM)
+	if l.mode == unix.NFT_NG_INCREMENTAL {
+		mode = uint32(unix.NFT_NG_INCREMENTAL)
+	}
 	for ind, chain := range l.chains {
 		elements = append(elements, nftables.SetElement{
 			Key: binaryutil.BigEndian.PutUint32(uint32(ind)),
 			VerdictData: &expr.Verdict{
-				Kind:  expr.VerdictKind(int64(unix.NFT_JUMP)),
+				Kind:  expr.VerdictKind(action),
 				Chain: chain,
 			},
 		})
@@ -769,7 +783,7 @@ func getExprForLoadbalance(nfr *nfRules, l *loadbalance) ([]expr.Any, error) {
 	exprs = append(exprs, &expr.Numgen{
 		Register: 1,
 		Modulus:  uint32(len(l.chains)),
-		Type:     uint32(unix.NFT_NG_RANDOM),
+		Type:     mode,
 		Offset:   0,
 	})
 
