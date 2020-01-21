@@ -94,6 +94,10 @@ func (m *Mock) GetSets(t *nftables.Table) ([]*nftables.Set, error) {
 	return nil, nil
 }
 
+func (m *Mock) GetSetByName(t *nftables.Table, name string) (*nftables.Set, error) {
+	return nil, nil
+}
+
 func (m *Mock) GetSetElements(set *nftables.Set) ([]nftables.SetElement, error) {
 	return nil, nil
 }

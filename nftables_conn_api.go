@@ -22,6 +22,7 @@ type NetNS interface {
 	AddSet(*nftables.Set, []nftables.SetElement) error
 	DelSet(*nftables.Set)
 	GetSets(*nftables.Table) ([]*nftables.Set, error)
+	GetSetByName(*nftables.Table, string) (*nftables.Set, error)
 	GetSetElements(*nftables.Set) ([]nftables.SetElement, error)
 	SetAddElements(*nftables.Set, []nftables.SetElement) error
 	SetDeleteElements(*nftables.Set, []nftables.SetElement) error
