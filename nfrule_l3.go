@@ -49,6 +49,9 @@ func createL3(l3proto nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, e
 		}
 		re = append(re, e...)
 	}
+	if rule.L3.Counter != nil {
+		re = append(re, getExprForCounter()...)
+	}
 	return re, sets, nil
 }
 

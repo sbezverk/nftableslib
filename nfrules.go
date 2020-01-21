@@ -96,8 +96,9 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			skipL3, skipL4, skipAction = true, true, true
 		}
 	}
-	// TODO, Counter may appear in different positions in the rule
-	// to figure out a more flexible approach to position counter.
+	// Counter could be used a standalone key word, in this case it will cound number of
+	// packets and bytes which hit the chain where it is defined.
+	// Counter can also be used before and within any rules.
 	if rule.Counter != nil {
 		e := getExprForCounter()
 		r.Exprs = append(r.Exprs, e...)
@@ -642,6 +643,7 @@ type L3Rule struct {
 	Version  *byte
 	Protocol *uint32
 	RelOp    Operator
+	Counter  *Counter
 }
 
 // L3Protocol is a helper function to convert a value of L3 protocol
@@ -738,6 +740,7 @@ type L4Rule struct {
 	Src     *Port
 	Dst     *Port
 	RelOp   Operator
+	Counter *Counter
 }
 
 // Validate checks parameters of L4Rule struct

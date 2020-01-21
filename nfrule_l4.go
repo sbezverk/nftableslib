@@ -36,6 +36,9 @@ func createL4(family nftables.TableFamily, rule *Rule) ([]expr.Any, []*nfSet, er
 		}
 		re = append(re, e...)
 	}
+	if rule.L4.Counter != nil {
+		re = append(re, getExprForCounter()...)
+	}
 
 	return re, sets, nil
 }
