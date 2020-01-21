@@ -773,7 +773,7 @@ func getExprForLoadbalance(nfr *nfRules, l *loadbalance) ([]expr.Any, error) {
 	}
 	for ind, chain := range l.chains {
 		elements = append(elements, nftables.SetElement{
-			Key: binaryutil.BigEndian.PutUint32(uint32(ind)),
+			Key: binaryutil.NativeEndian.PutUint32(uint32(ind)),
 			VerdictData: &expr.Verdict{
 				Kind:  expr.VerdictKind(action),
 				Chain: chain,
