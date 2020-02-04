@@ -12,9 +12,14 @@ import (
 
 // SetAttributes  defines parameters of a nftables Set
 type SetAttributes struct {
-	Name     string
-	Constant bool
-	IsMap    bool
+	Name       string
+	Constant   bool
+	IsMap      bool
+	HasTimeout bool
+	// Timeout value in milliseconds
+	Timeout uint64
+	// Interval flag must be set only when the set elements are ranges, address ranges or port ranges
+	Interval bool
 	KeyType  nftables.SetDatatype
 	DataType nftables.SetDatatype
 }
@@ -35,6 +40,7 @@ type ElementValue struct {
 	EtherAddr   []byte
 	InetProto   *byte
 	InetService *uint16
+	Mark        *uint32
 }
 
 // SetsInterface defines third level interface operating with nf maps
@@ -68,25 +74,30 @@ func (nfs *nfSets) CreateSet(attrs *SetAttributes, elements []nftables.SetElemen
 	var err error
 	// TODO Add parameters validation
 	se := []nftables.SetElement{}
-	setInterval := false
-	if attrs.KeyType == nftables.TypeIPAddr || attrs.KeyType == nftables.TypeIP6Addr {
-		setInterval = true
-		if nfs.table.Family == nftables.TableFamilyIPv4 {
-			se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
-		} else {
-			se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
+	if attrs.Interval {
+		if attrs.KeyType == nftables.TypeIPAddr || attrs.KeyType == nftables.TypeIP6Addr {
+			if nfs.table.Family == nftables.TableFamilyIPv4 {
+				se = append(se, nftables.SetElement{Key: net.ParseIP("0.0.0.0").To4(), IntervalEnd: true})
+			} else {
+				se = append(se, nftables.SetElement{Key: net.ParseIP("::").To16(), IntervalEnd: true})
+			}
 		}
 	}
 	s := &nftables.Set{
-		Table:     nfs.table,
-		ID:        uint32(rand.Intn(0xffff)),
-		Name:      attrs.Name,
-		Anonymous: false,
-		Constant:  attrs.Constant,
-		Interval:  setInterval,
-		IsMap:     attrs.IsMap,
-		KeyType:   attrs.KeyType,
-		DataType:  attrs.DataType,
+		Table:      nfs.table,
+		ID:         uint32(rand.Intn(0xffff)),
+		Name:       attrs.Name,
+		Anonymous:  false,
+		Constant:   attrs.Constant,
+		Interval:   attrs.Interval,
+		IsMap:      attrs.IsMap,
+		HasTimeout: attrs.HasTimeout,
+		KeyType:    attrs.KeyType,
+		DataType:   attrs.DataType,
+	}
+	if attrs.HasTimeout && attrs.Timeout != 0 {
+		// Netlink expects timeout in milliseconds
+		s.Timeout = attrs.Timeout
 	}
 	// Adding elements to new Set if any provided
 	se = append(se, elements...)
@@ -262,6 +273,11 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 			return nil, fmt.Errorf("key value cannot be nil")
 		}
 		b = binaryutil.BigEndian.PutUint32(*keyV.Integer)
+	case nftables.TypeMark:
+		if keyV.Mark == nil {
+			return nil, fmt.Errorf("key value cannot be nil")
+		}
+		b = binaryutil.BigEndian.PutUint32(*keyV.Mark)
 	case nftables.TypeIPAddr:
 		if keyV.IPAddr == nil {
 			return nil, fmt.Errorf("key value cannot be nil")
