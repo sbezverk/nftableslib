@@ -187,6 +187,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 		}
 		r.Exprs = append(r.Exprs, e...)
 	}
+	if rule.Dynamic != nil {
+		e, err = getExprForDynamic(nfr.table.Family, rule.Dynamic)
+		if err != nil {
+			return nil, err
+		}
+		r.Exprs = append(r.Exprs, e...)
+	}
 	r.Table = nfr.table
 	r.Chain = nfr.chain
 
