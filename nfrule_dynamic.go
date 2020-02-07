@@ -14,9 +14,9 @@ func getExprForDynamic(l3proto nftables.TableFamily, dynamic *Dynamic) ([]expr.A
 	re := []expr.Any{}
 	switch l3proto {
 	case nftables.TableFamilyIPv4:
-		l3OffsetSrc = 12
-		l3OffsetDst = 16
-		l3AddrLen = 4
+		//		l3OffsetSrc = 12
+		//		l3OffsetDst = 16
+		//		l3AddrLen = 4
 		l4ProtoOffset = 9
 	case nftables.TableFamilyIPv6:
 		l3OffsetSrc = 8
