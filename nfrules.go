@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
@@ -1103,9 +1104,34 @@ type Conntrack struct {
 	Value []byte
 }
 
+// Match defines a matching criterion for an incoming packet. Only one of the criterion
+// can be specified.
+type Match struct {
+	Concat *Concat
+	Fib    *Fib
+	L3     *L3Rule
+	L4     *L4Rule
+	Meta   *Meta
+}
+
+// Dynamic defines a rule which dynamically add or update a Set or Map based on
+// an incoming packet.
+type Dynamic struct {
+	Match *Match
+	// Op defines an operation, supported operations are Add and Update.
+	Op uint32
+	// Key defines a key to use for a new entry added to a Set or Map.
+	Key uint32
+	// SetRef defines a reference to the Set or Map that gets updated.
+	SetRef *SetRef
+	// Timeout defines an aging timeout for a new entry.
+	Timeout time.Duration
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
 	Concat     *Concat
+	Dynamic    *Dynamic
 	Fib        *Fib
 	L3         *L3Rule
 	L4         *L4Rule
