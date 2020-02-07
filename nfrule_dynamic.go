@@ -36,28 +36,28 @@ func getExprForDynamic(l3proto nftables.TableFamily, dynamic *Dynamic) ([]expr.A
 	}
 
 	switch dynamic.Match {
-	case L3Src:
+	case MatchTypeL3Src:
 		re = append(re, &expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseNetworkHeader,
 			Offset:       l3OffsetSrc,       // Offset ip address in network header
 			Len:          uint32(l3AddrLen), // length bytes for ip address
 		})
-	case L3Dst:
+	case MatchTypeL3Dst:
 		re = append(re, &expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseNetworkHeader,
 			Offset:       l3OffsetDst,       // Offset ip address in network header
 			Len:          uint32(l3AddrLen), // length bytes for ip address
 		})
-	case L4Src:
+	case MatchTypeL4Src:
 		re = append(re, &expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseTransportHeader,
 			Offset:       l4OffsetSrc, // Offset for a transport protocol header
 			Len:          2,           // 2 bytes for port
 		})
-	case L4Dst:
+	case MatchTypeL4Dst:
 		re = append(re, &expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseTransportHeader,

@@ -1120,14 +1120,14 @@ type Conntrack struct {
 type MatchType uint32
 
 const (
-	// L3Src match Layer 3 source address
-	L3Src MatchType = iota
-	// L3Dst match Layer 3 destination address
-	L3Dst
-	// L4Src match Layer 4 source port
-	L4Src
-	// L4Dst match Layer 4 destination port
-	L4Dst
+	// MatchTypeL3Src match Layer 3 source address
+	MatchTypeL3Src MatchType = iota
+	// MatchTypeL3Dst match Layer 3 destination address
+	MatchTypeL3Dst
+	// MatchTypeL4Src match Layer 4 source port
+	MatchTypeL4Src
+	// MatchTypeL4Dst match Layer 4 destination port
+	MatchTypeL4Dst
 )
 
 // Dynamic defines a rule which dynamically add or update a Set or Map based on
