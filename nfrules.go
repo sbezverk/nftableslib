@@ -97,6 +97,10 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			skipL3, skipL4, skipAction = true, true, true
 		}
 	}
+	// Dynamic rules has its own matching criterions, no need to process global L3 and L4 selectors.
+	if rule.Dynamic != nil {
+		skipL3, skipL4 = true, true
+	}
 	// Counter could be used a standalone key word, in this case it will cound number of
 	// packets and bytes which hit the chain where it is defined.
 	// Counter can also be used before and within any rules.
