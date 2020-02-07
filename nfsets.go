@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
@@ -16,8 +17,7 @@ type SetAttributes struct {
 	Constant   bool
 	IsMap      bool
 	HasTimeout bool
-	// Timeout value in milliseconds
-	Timeout uint64
+	Timeout    time.Duration
 	// Interval flag must be set only when the set elements are ranges, address ranges or port ranges
 	Interval bool
 	KeyType  nftables.SetDatatype
