@@ -1115,20 +1115,25 @@ type Conntrack struct {
 	Value []byte
 }
 
-// Match defines a matching criterion for an incoming packet. Only one of the criterion
+// MatchType defines a matching criteria for an incoming packet. Only one of the criterias
 // can be specified.
-type Match struct {
-	Concat *Concat
-	Fib    *Fib
-	L3     *L3Rule
-	L4     *L4Rule
-	Meta   *Meta
-}
+type MatchType uint32
+
+const (
+	// L3Src match Layer 3 source address
+	L3Src MatchType = iota
+	// L3Dst match Layer 3 destination address
+	L3Dst
+	// L4Src match Layer 4 source port
+	L4Src
+	// L4Dst match Layer 4 destination port
+	L4Dst
+)
 
 // Dynamic defines a rule which dynamically add or update a Set or Map based on
 // an incoming packet.
 type Dynamic struct {
-	Match *Match
+	Match MatchType
 	// Op defines an operation, supported operations are Add and Update.
 	Op uint32
 	// Key defines a key to use for a new entry added to a Set or Map.
@@ -1137,6 +1142,7 @@ type Dynamic struct {
 	SetRef *SetRef
 	// Timeout defines an aging timeout for a new entry.
 	Timeout time.Duration
+	Invert  bool
 }
 
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified

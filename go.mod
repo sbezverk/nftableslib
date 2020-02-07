@@ -3,6 +3,7 @@ module github.com/sbezverk/nftableslib
 go 1.12
 
 require (
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/google/nftables v0.0.0-20200210101420-1c56a1906fbf
 	github.com/google/uuid v1.1.1
