@@ -53,6 +53,7 @@ type SetFuncs interface {
 	CreateSet(*SetAttributes, []nftables.SetElement) (*nftables.Set, error)
 	DelSet(string) error
 	GetSets() ([]*nftables.Set, error)
+	GetSetByName(string) (*nftables.Set, error)
 	GetSetElements(string) ([]nftables.SetElement, error)
 	SetAddElements(string, []nftables.SetElement) error
 	SetDelElements(string, []nftables.SetElement) error
@@ -130,6 +131,21 @@ func (nfs *nfSets) Exist(name string) bool {
 	}
 
 	return true
+}
+
+func (nfs *nfSets) GetSetByName(name string) (*nftables.Set, error) {
+	nfs.Lock()
+	_, ok := nfs.sets[name]
+	nfs.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("set %s is not found", name)
+	}
+	s, err := nfs.conn.GetSetByName(nfs.table, name)
+	if err != nil {
+		return nil, fmt.Errorf("set %s is not found", name)
+	}
+
+	return s, nil
 }
 
 func (nfs *nfSets) DelSet(name string) error {

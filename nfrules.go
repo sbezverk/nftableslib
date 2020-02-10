@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
@@ -96,6 +97,10 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 			skipL3, skipL4, skipAction = true, true, true
 		}
 	}
+	// Dynamic rules has its own matching criterions, no need to process global L3 and L4 selectors.
+	if rule.Dynamic != nil {
+		skipL3, skipL4 = true, true
+	}
 	// Counter could be used a standalone key word, in this case it will cound number of
 	// packets and bytes which hit the chain where it is defined.
 	// Counter can also be used before and within any rules.
@@ -177,6 +182,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	}
 	if rule.Concat != nil {
 		e, err = getExprForConcat(nfr.table.Family, rule.Concat)
+		if err != nil {
+			return nil, err
+		}
+		r.Exprs = append(r.Exprs, e...)
+	}
+	if rule.Dynamic != nil {
+		e, err = getExprForDynamic(nfr.table.Family, rule.Dynamic)
 		if err != nil {
 			return nil, err
 		}
@@ -1103,9 +1115,40 @@ type Conntrack struct {
 	Value []byte
 }
 
+// MatchType defines a matching criteria for an incoming packet. Only one of the criterias
+// can be specified.
+type MatchType uint32
+
+const (
+	// MatchTypeL3Src match Layer 3 source address
+	MatchTypeL3Src MatchType = iota
+	// MatchTypeL3Dst match Layer 3 destination address
+	MatchTypeL3Dst
+	// MatchTypeL4Src match Layer 4 source port
+	MatchTypeL4Src
+	// MatchTypeL4Dst match Layer 4 destination port
+	MatchTypeL4Dst
+)
+
+// Dynamic defines a rule which dynamically add or update a Set or Map based on
+// an incoming packet.
+type Dynamic struct {
+	Match MatchType
+	// Op defines an operation, supported operations are Add and Update.
+	Op uint32
+	// Key defines a key to use for a new entry added to a Set or Map.
+	Key uint32
+	// SetRef defines a reference to the Set or Map that gets updated.
+	SetRef *SetRef
+	// Timeout defines an aging timeout for a new entry.
+	Timeout time.Duration
+	Invert  bool
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
 	Concat     *Concat
+	Dynamic    *Dynamic
 	Fib        *Fib
 	L3         *L3Rule
 	L4         *L4Rule
