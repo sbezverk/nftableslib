@@ -149,14 +149,16 @@ func (nfs *nfSets) GetSetByName(name string) (*nftables.Set, error) {
 }
 
 func (nfs *nfSets) DelSet(name string) error {
-	fmt.Printf("><SB> Attempting to delete Set %s\n", name)
 	if nfs.Exist(name) {
-		fmt.Printf("><SB> Set %s exists\n", name)
 		nfs.conn.DelSet(nfs.sets[name])
-	} else {
-		fmt.Printf("><SB> Set %s does not exist\n", name)
+		if err := nfs.conn.Flush(); err != nil {
+			return err
+		}
+		nfs.Lock()
+		defer nfs.Unlock()
+		delete(nfs.sets, name)
 	}
-	// Returning nil for either case, if set does not exist ot it  was successfully deleted
+
 	return nil
 }
 
