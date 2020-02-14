@@ -101,6 +101,10 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	if rule.Dynamic != nil {
 		skipL3, skipL4 = true, true
 	}
+	// MatchAct rule has its own matching criterias and corresponding action, hence skipping regular rule processing.
+	if rule.MatchAct != nil {
+		skipL3, skipL4, skipAction = true, true, true
+	}
 	// Counter could be used a standalone key word, in this case it will cound number of
 	// packets and bytes which hit the chain where it is defined.
 	// Counter can also be used before and within any rules.
@@ -189,6 +193,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	}
 	if rule.Dynamic != nil {
 		e, err = getExprForDynamic(nfr.table.Family, rule.Dynamic)
+		if err != nil {
+			return nil, err
+		}
+		r.Exprs = append(r.Exprs, e...)
+	}
+	if rule.MatchAct != nil {
+		e, err = getExprForMatchAct(nfr, nfr.table.Family, rule.MatchAct)
 		if err != nil {
 			return nil, err
 		}
@@ -1145,10 +1156,23 @@ type Dynamic struct {
 	Invert  bool
 }
 
+// MatchAct rule defines a special type of rules (no support yet by nft cli tool), where matching
+// is done by referring to a named map { match criteria : integer } and action is defined in an anonymous vmap
+// { integer : action }. The match returns a key which is used as input for action lookup in the anonymous vmap.
+type MatchAct struct {
+	Match MatchType
+	// MatchRef defines a reference to the named map { match criteria : integer }
+	MatchRef *SetRef
+	// ActElements defines a slice elements of type { integer : action }, these will be placed into
+	// the anonymous action map.
+	ActElement map[int]*RuleAction
+}
+
 // Rule contains parameters for a rule to configure, only L3 OR L4 parameters can be specified
 type Rule struct {
 	Concat     *Concat
 	Dynamic    *Dynamic
+	MatchAct   *MatchAct
 	Fib        *Fib
 	L3         *L3Rule
 	L4         *L4Rule
