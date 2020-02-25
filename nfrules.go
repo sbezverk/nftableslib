@@ -3,6 +3,7 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -241,22 +242,17 @@ func (nfr *nfRules) create(rule *Rule, ruleOp ruleOperation) (uint32, error) {
 		// Used by Insert call
 		rr.rule.Position = uint64(rule.Position)
 	}
-	// If user passes UserData, then first 2 bytes define length of user data, +1 for tailing 0x0
-	// also Userdata must be aligned to 4 bytes border
-	var userData []byte
-	if rule.UserData != nil {
-		userData = append(userData, binaryutil.BigEndian.PutUint16(uint16(len(rule.UserData)+1))...)
-		userData = append(userData, rule.UserData...)
-		userData = append(userData, byte(0x0))
-		// Must align to 4 bytes border, +2 is included to account for 2 bytes of actual User data length
-		if remainder := len(userData) % 4; remainder != 0 {
-			userData = append(userData, make([]byte, 4-remainder)...)
-		}
-	}
-	userData = append(userData, binaryutil.BigEndian.PutUint32(rr.id)...)
-	rr.rule.UserData = make([]byte, len(userData))
-	copy(rr.rule.UserData, userData)
+	ul := len(rule.UserData)
+	// Extra 4 bytes to keep rule ID in userdata during the rule programming interactions.
+	rr.rule.UserData = make([]byte, ul+4)
 
+	if rule.UserData != nil {
+		copy(rr.rule.UserData, rule.UserData)
+	}
+	// Adding rule ID into the last 4 bytes
+	rr.rule.UserData[ul] = 0x2
+	rr.rule.UserData[ul+1] = 2
+	copy(rr.rule.UserData[ul+2:], binaryutil.BigEndian.PutUint16(uint16(rr.id)))
 	// Pushing rule to netlink library to be programmed by Flush()
 	switch ruleOp {
 	case operationAdd:
@@ -369,21 +365,16 @@ func (nfr *nfRules) Update(rule *Rule, handle uint64) error {
 		return err
 	}
 	r.rule.Handle = handle
-	// If user passes UserData, then first 2 bytes define length of user data, +1 for tailing 0x0
-	// also Userdata must be aligned to 4 bytes border
-	var userData []byte
+	ul := len(rule.UserData)
+	// Extra 4 bytes to keep rule ID in userdata during the rule programming interactions.
+	r.rule.UserData = make([]byte, ul+4)
 	if rule.UserData != nil {
-		userData = append(userData, binaryutil.BigEndian.PutUint16(uint16(len(rule.UserData)+1))...)
-		userData = append(userData, rule.UserData...)
-		userData = append(userData, byte(0x0))
-		// Must align to 4 bytes border, +2 is included to account for 2 bytes of actual User data length
-		if remainder := len(userData) % 4; remainder != 0 {
-			userData = append(userData, make([]byte, 4-remainder)...)
-		}
-		userData = append(userData, binaryutil.BigEndian.PutUint32(r.id)...)
-		r.rule.UserData = make([]byte, len(userData))
-		copy(r.rule.UserData, userData)
+		copy(r.rule.UserData, rule.UserData)
 	}
+	// Adding rule ID into the last 4 bytes
+	r.rule.UserData[ul] = 0x2
+	r.rule.UserData[ul+1] = 2
+	copy(r.rule.UserData[ul+2:], binaryutil.BigEndian.PutUint16(uint16(r.id)))
 
 	// Updating rule expressions and sets but preserving pointers to prev and next
 	nfrule.rule = r.rule
@@ -511,8 +502,18 @@ func (nfr *nfRules) GetRuleHandle(id uint32) (uint64, error) {
 	}
 	for _, rule := range rules {
 		if rule.UserData != nil {
-			// Rule ID is stored in last 4 bytes of User data
-			ruleID := binaryutil.BigEndian.Uint32(rule.UserData[len(rule.UserData)-4:])
+			// Rule ID TLV is stored in last 4 bytes of User data
+			n := make([]byte, 4)
+			// Rule ID TLV 4 bytes:
+			//      [0] - TLV type , must be 0x2
+			//      [1] - Value length, must be 2
+			//      [2:] - 2 bytes carrying Rule ID
+			if rule.UserData[len(rule.UserData)-4] != 0x2 || rule.UserData[len(rule.UserData)-3] != 0x2 {
+				return 0, fmt.Errorf("did not find Rule ID TLV in user data")
+			}
+			// Copy last 2 bytes of user data which carry rule id
+			copy(n[2:], rule.UserData[len(rule.UserData)-2:])
+			ruleID := binaryutil.BigEndian.Uint32(n)
 			if ruleID == id {
 				return rule.Handle, nil
 			}
@@ -530,8 +531,8 @@ func (nfr *nfRules) GetRulesUserData() (map[uint64][]byte, error) {
 	ud := make(map[uint64][]byte, 0)
 	for _, rule := range rules {
 		if rule.UserData != nil {
-			// Skip first 2 bytes as they encode user data length -1 (extra 0x0 byte)
-			ud[rule.Handle] = rule.UserData[2 : binaryutil.BigEndian.Uint32(rule.UserData[0:2])-1]
+			// TODO, needs to be tested
+			ud[rule.Handle] = rule.UserData[:len(rule.UserData)-4]
 		}
 	}
 
@@ -1217,4 +1218,23 @@ func (r Rule) Validate() error {
 func getSetName() string {
 	name := uuid.New().String()
 	return name[len(name)-12:]
+}
+
+// MakeRuleComment makes NFTNL_UDATA_RULE_COMMENT TLV. Length of TLV is 1 bytes
+// as a result, the maximum comment length is 254 bytes.
+func MakeRuleComment(s string) []byte {
+	cl := len(s)
+	c := s
+	if cl > math.MaxUint8 {
+		cl = math.MaxUint8
+		// Make sure that comment does not exceed maximum allowed length.
+		c = s[:math.MaxUint8-1]
+	}
+	// Extra 3 bytes to carry Comment TLV type and length and taling 0x0
+	comment := make([]byte, cl+3)
+	comment[0] = 0x0
+	comment[1] = uint8(cl + 1)
+	copy(comment[2:], c)
+
+	return comment
 }
