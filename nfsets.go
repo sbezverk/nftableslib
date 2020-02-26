@@ -36,7 +36,6 @@ type ElementValue struct {
 	// New members
 	Integer     *uint32
 	IPAddr      []byte
-	IP6Addr     []byte
 	EtherAddr   []byte
 	InetProto   *byte
 	InetService *uint16
@@ -301,17 +300,13 @@ func processElementValue(keyT nftables.SetDatatype, keyV ElementValue) ([]byte, 
 		}
 		b = binaryutil.BigEndian.PutUint32(*keyV.Mark)
 	case nftables.TypeIPAddr:
+		fallthrough
+	case nftables.TypeIP6Addr:
 		if keyV.IPAddr == nil {
 			return nil, fmt.Errorf("key value cannot be nil")
 		}
 		b = make([]byte, len(keyV.IPAddr))
 		copy(b, []byte(keyV.IPAddr))
-	case nftables.TypeIP6Addr:
-		if keyV.IP6Addr == nil {
-			return nil, fmt.Errorf("key value cannot be nil")
-		}
-		b = make([]byte, len(keyV.IP6Addr))
-		copy(b, []byte(keyV.IP6Addr))
 	case nftables.TypeEtherAddr:
 		if keyV.EtherAddr == nil {
 			return nil, fmt.Errorf("key value cannot be nil")
@@ -371,8 +366,8 @@ func GenSetKeyType(types ...nftables.SetDatatype) nftables.SetDatatype {
 			if types[i].Bytes <= 4 {
 				b += 4
 			} else {
+				b += types[i].Bytes
 				if types[i].Bytes%4 != 0 {
-					b += types[i].Bytes
 					b += 4 - (types[i].Bytes % 4)
 				}
 			}
