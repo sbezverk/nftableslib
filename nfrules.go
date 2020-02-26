@@ -3,7 +3,6 @@ package nftableslib
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"net"
 	"sync"
 	"time"
@@ -1220,15 +1219,20 @@ func getSetName() string {
 	return name[len(name)-12:]
 }
 
+const (
+	// MaxCommentLength defines Maximum Length of Rule's Comment field
+	MaxCommentLength = 127
+)
+
 // MakeRuleComment makes NFTNL_UDATA_RULE_COMMENT TLV. Length of TLV is 1 bytes
 // as a result, the maximum comment length is 254 bytes.
 func MakeRuleComment(s string) []byte {
 	cl := len(s)
 	c := s
-	if cl > math.MaxUint8 {
-		cl = math.MaxUint8
+	if cl > MaxCommentLength {
+		cl = MaxCommentLength
 		// Make sure that comment does not exceed maximum allowed length.
-		c = s[:math.MaxUint8-1]
+		c = s[:MaxCommentLength]
 	}
 	// Extra 3 bytes to carry Comment TLV type and length and taling 0x0
 	comment := make([]byte, cl+3)
