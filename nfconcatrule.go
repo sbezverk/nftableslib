@@ -54,7 +54,19 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 	for _, e := range concat.Elements {
 		switch e.EType {
 		case nftables.TypeIPAddr:
-			fallthrough
+			// [ payload load length of address in bytes @ network header + l3OffsetSrc or l3OffsetDst => reg 1 ]
+			var offset uint32
+			if e.ESource {
+				offset = l3OffsetSrc
+			} else {
+				offset = l3OffsetDst
+			}
+			re = append(re, &expr.Payload{
+				DestRegister: register,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       offset,
+				Len:          l3AddrLen,
+			})
 		case nftables.TypeIP6Addr:
 			// [ payload load length of address in bytes @ network header + l3OffsetSrc or l3OffsetDst => reg 1 ]
 			var offset uint32
@@ -69,6 +81,8 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 				Offset:       offset,
 				Len:          l3AddrLen,
 			})
+			// Since IPv6 takes 16 bytes, need to increment register counter by 3.
+			register += 3
 		case nftables.TypeEtherAddr:
 		case nftables.TypeInetProto:
 			// [ payload load 1b @ network header + 9 => reg 1 ]
@@ -96,13 +110,7 @@ func getExprForConcat(l3proto nftables.TableFamily, concat *Concat) ([]expr.Any,
 			return nil, fmt.Errorf("unsupported element type %+v", e.EType)
 		}
 		if register == 1 {
-			// Based on debugging of nft cli tool, netfilter expects register 9 for ipv4 case
-			// and register 2 for ipv6
-			if l3proto == nftables.TableFamilyIPv4 {
-				register = 9
-			} else {
-				register = 2
-			}
+			register = 9
 		} else {
 			register++
 		}
