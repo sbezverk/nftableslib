@@ -74,7 +74,7 @@ Rule type offers Validation method which checks all parameters provided in Rule 
 
 Here is example of programming a simple L3 rule:
 
-```
+```go
 package main
 
 import (
@@ -90,37 +90,37 @@ import (
 
 func main() {
 	// Initializing netlink connection for a global namespace,
-    // if non-global namespace is needed, namespace id must be specified in InitConn
+	// if non-global namespace is needed, namespace id must be specified in InitConn
 	conn := nftableslib.InitConn()
-    // Initializing nftableslib
+	// Initializing nftableslib
 	ti := nftableslib.InitNFTables(conn)
 
 	// Clean up previously defined nf tables
 	conn.FlushRuleset()
 
-    // Creating nf table for IPv4 family
+	// Creating nf table for IPv4 family
 	ti.Tables().Create("ipv4table", nftables.TableFamilyIPv4)
 
-    // Alternatively ti.Tables().CreateImm("ipv4table", nftables.TableFamilyIPv4) could be 
-    // used which does not require following conn.Flush()
-    // There is CreateImm api call for tables, chains and rules following the same pattern, the result of calling them
-    // would be immediate programming in kernel table,chain or a rule.
+	// Alternatively ti.Tables().CreateImm("ipv4table", nftables.TableFamilyIPv4) could be 
+	// used which does not require following conn.Flush()
+	// There is CreateImm api call for tables, chains and rules following the same pattern, 
+	// the result of calling them would be immediate programming in kernel table,chain or a rule.
 
 	// Pushing table config to nf tables module
-    // Pushing config after each create is not mandatory, it is done for debugging purposes.
+	// Pushing config after each create is not mandatory, it is done for debugging purposes.
 	if err := conn.Flush(); err != nil {
 		fmt.Printf("Failed to programm nftable with error: %+v\n", err)
 		os.Exit(1)
 	}
 
-    // Getting Chains Interface for just created table
+	// Getting Chains Interface for just created table
 	ci, err := ti.Tables().Table("ipv4table", nftables.TableFamilyIPv4)
 	if err != nil {
 		fmt.Printf("Failed to get chains interface for table ipv4table with error: %+v\n", err)
 		os.Exit(1)
 	}
-
-    // Creating new chain
+	
+	// Creating new chain
 	ci.Chains().Create("ipv4chain-1", nftables.ChainHookPrerouting,
 		nftables.ChainPriorityFirst, nftables.ChainTypeFilter)
 	
@@ -129,14 +129,14 @@ func main() {
 		os.Exit(1)
 	}
 	// Specifying L3 rule if ipv4 traffic is source from one of these ip addresses
-    // stiop processing.
-    ruleAction, err := nftableslib.SetVerdict(unix.NFT_JUMP, "fake-chain-1")
+	// stiop processing.
+	ruleAction, err := nftableslib.SetVerdict(unix.NFT_JUMP, "fake-chain-1")
 	if err != nil {
 		fmt.Printf("Failed to set the verdict with error: %+v\n", err)
 		os.Exit(1)
 	}
-    ipv4addr1, _ := nftableslib.NewIPAddr("1.2.3.4")
-    ipv4addr2, _ := nftableslib.NewIPAddr("2.3.4.5")
+	ipv4addr1, _ := nftableslib.NewIPAddr("1.2.3.4")
+	ipv4addr2, _ := nftableslib.NewIPAddr("2.3.4.5")
 	rule1 := nftableslib.Rule{
 		L3: &nftableslib.L3Rule{
 			Src: &nftableslib.IPAddrSpec{
@@ -146,13 +146,13 @@ func main() {
         Action: ruleAction,
 		Exclude: false,
 	}
-    // Getting Rules interface from chain ipv4chain-1
+	// Getting Rules interface from chain ipv4chain-1
 	ri, err := ci.Chains().Chain("ipv4chain-1")
 	if err != nil {
 		fmt.Printf("Failed to get rules interface for chain ipv4chain-1 with error: %+v\n", err)
 		os.Exit(1)
 	}
-    // Creating rule
+	// Creating rule
 	if err := ri.Rules().Create("ipv4rule-1", &rule1); err != nil {
 		fmt.Printf("failed to create chain with error: %+v, exiting...\n", err)
 		os.Exit(1)
