@@ -54,7 +54,7 @@ func testSync() error {
 					Type:     nftables.ChainTypeFilter,
 					Priority: 0,
 					Hook:     nftables.ChainHookInput,
-					Policy:   nftableslib.ChainPolicyAccept,
+					Policy:   &accept,
 				},
 				Rules: []nftableslib.Rule{
 					{

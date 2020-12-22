@@ -21,6 +21,7 @@ import (
 
 var (
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	accept     = nftableslib.ChainPolicyAccept
 )
 
 var tests = []setenv.NFTablesTest{
@@ -34,7 +35,7 @@ var tests = []setenv.NFTablesTest{
 					Type:     nftables.ChainTypeFilter,
 					Priority: 0,
 					Hook:     nftables.ChainHookInput,
-					Policy:   nftableslib.ChainPolicyAccept,
+					Policy:   &accept,
 				},
 				Rules: []nftableslib.Rule{
 					{
@@ -256,7 +257,7 @@ var tests = []setenv.NFTablesTest{
 					Type:     nftables.ChainTypeFilter,
 					Priority: 0,
 					Hook:     nftables.ChainHookInput,
-					Policy:   nftableslib.ChainPolicyAccept,
+					Policy:   &accept,
 				},
 				Rules: []nftableslib.Rule{
 					{
