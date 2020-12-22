@@ -14,6 +14,8 @@ import (
 	"github.com/sbezverk/nftableslib/pkg/e2e/validations"
 )
 
+var accept = nftableslib.ChainPolicyAccept
+
 func init() {
 	runtime.LockOSThread()
 }
@@ -30,7 +32,7 @@ func main() {
 						Type:     nftables.ChainTypeFilter,
 						Priority: 0,
 						Hook:     nftables.ChainHookInput,
-						Policy:   nftableslib.ChainPolicyAccept,
+						Policy:   &accept,
 					},
 					Rules: []nftableslib.Rule{
 						{
@@ -275,7 +277,7 @@ func main() {
 						Type:     nftables.ChainTypeFilter,
 						Priority: 0,
 						Hook:     nftables.ChainHookInput,
-						Policy:   nftableslib.ChainPolicyAccept,
+						Policy:   &accept,
 					},
 					Rules: []nftableslib.Rule{
 						{

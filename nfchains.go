@@ -36,7 +36,7 @@ type ChainAttributes struct {
 	Hook     nftables.ChainHook
 	Priority nftables.ChainPriority
 	Device   string
-	Policy   ChainPolicy
+	Policy   *ChainPolicy
 }
 
 // Validate validate attributes passed for a base chain creation
@@ -117,6 +117,14 @@ func isEqualChain(ch *nfChain, attributes *ChainAttributes) bool {
 			attributes.Priority != ch.chain.Priority {
 			return false
 		}
+		if attributes.Policy != nil {
+			if ch.chain.Policy == nil {
+				return false
+			}
+			if nftables.ChainPolicy(*attributes.Policy) != *ch.chain.Policy {
+				return false
+			}
+		}
 	}
 
 	return true
@@ -137,14 +145,17 @@ func (nfc *nfChains) create(name string, attributes *ChainAttributes) error {
 			return err
 		}
 		baseChain = true
-		defaultPolicy := nftables.ChainPolicyAccept
+		policy := nftables.ChainPolicyAccept
+		if attributes.Policy != nil {
+			policy = nftables.ChainPolicy(*attributes.Policy)
+		}
 		c = nfc.conn.AddChain(&nftables.Chain{
 			Name:     name,
 			Hooknum:  attributes.Hook,
 			Priority: attributes.Priority,
 			Table:    nfc.table,
 			Type:     attributes.Type,
-			Policy:   &defaultPolicy,
+			Policy:   &policy,
 		})
 	} else {
 		baseChain = false
