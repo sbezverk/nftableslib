@@ -828,9 +828,12 @@ type loadbalance struct {
 // Mark can be used either to Set or Match a mark.
 // If Set is true, then the Value will be used to mark a packet,
 // and if Set is false, then the Value will be used to match packet's mark against it.
+// Mask can be used to test for or to set only particular bits in mark.
+// If mask is 0, than it is not used at all.
 type MetaMark struct {
 	Set   bool
-	Value int32
+	Value uint32
+	Mask  uint32
 }
 
 // MetaExpr allows specifing Meta expressions by meta key and its value,
