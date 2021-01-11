@@ -396,20 +396,53 @@ func getExprForMetaMark(mark *MetaMark) []expr.Any {
 	if mark == nil {
 		return []expr.Any{}
 	}
+
+	// Apply mask to mark if needed
+	maskedMark := mark.Value
+	if mark.Mask != 0 {
+		maskedMark = maskedMark & mark.Mask
+	}
+
 	re := []expr.Any{}
 	if mark.Set {
-		// [ immediate reg 1 0x0000dead ]
+		if mark.Mask != 0 {
+			// [ meta load mark => reg 1 ]
+			re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: false})
+
+			// [ (reg 1 & NOT 0x0000beef) ^ 0x0000dead => reg 1 ]
+			re = append(re, &expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            4,
+				Mask:           binaryutil.NativeEndian.PutUint32(^mark.Mask),
+				Xor:            binaryutil.NativeEndian.PutUint32(maskedMark),
+			})
+
+		} else {
+			// [ immediate reg 1 0x0000dead ]
+			re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.NativeEndian.PutUint32(maskedMark)})
+		}
 		// [ meta set mark with reg 1 ]
-		re = append(re, &expr.Immediate{Register: 1, Data: binaryutil.NativeEndian.PutUint32(uint32(mark.Value))})
 		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: true})
 	} else {
 		// [ meta load mark => reg 1 ]
-		// [ cmp eq reg 1 0x0000dead ]
 		re = append(re, &expr.Meta{Key: expr.MetaKey(unix.NFT_META_MARK), Register: 1, SourceRegister: false})
+
+		if mark.Mask != 0 {
+			// [ (reg 1 & 0x0000beef) ^ 0 => reg 1 ]
+			re = append(re, &expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            4,
+				Mask:           binaryutil.NativeEndian.PutUint32(mark.Mask),
+				Xor:            []byte{0x0, 0x0, 0x0, 0x0},
+			})
+		}
+		// [ cmp eq reg 1 0x0000dead ]
 		re = append(re, &expr.Cmp{
 			Op:       expr.CmpOpEq,
 			Register: 1,
-			Data:     binaryutil.NativeEndian.PutUint32(uint32(mark.Value)),
+			Data:     binaryutil.NativeEndian.PutUint32(maskedMark),
 		})
 	}
 
