@@ -2,6 +2,7 @@ package nftableslib
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -91,19 +92,19 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	var set []*nfSet
 	e := []expr.Any{}
 	// Some Rule elements can request to skip processing of certain blocks
-	var skipL3, skipL4, skipAction bool
+	var skipL2, skipL3, skipL4, skipAction bool
 	if rule.Concat != nil {
 		if rule.Concat.VMap {
-			skipL3, skipL4, skipAction = true, true, true
+			skipL2, skipL3, skipL4, skipAction = true, true, true, true
 		}
 	}
 	// Dynamic rules has its own matching criterions, no need to process global L3 and L4 selectors.
 	if rule.Dynamic != nil {
-		skipL3, skipL4 = true, true
+		skipL2, skipL3, skipL4 = true, true, true
 	}
 	// MatchAct rule has its own matching criterias and corresponding action, hence skipping regular rule processing.
 	if rule.MatchAct != nil {
-		skipL3, skipL4, skipAction = true, true, true
+		skipL2, skipL3, skipL4, skipAction = true, true, true, true
 	}
 	// Counter could be used a standalone key word, in this case it will cound number of
 	// packets and bytes which hit the chain where it is defined.
@@ -114,6 +115,13 @@ func (nfr *nfRules) buildRule(rule *Rule) (*nfRule, error) {
 	}
 	if rule.Fib != nil {
 		e := getExprForFib(rule.Fib)
+		r.Exprs = append(r.Exprs, e...)
+	}
+	if rule.L2 != nil && !skipL2 {
+		if e, set, err = createL2(rule); err != nil {
+			return nil, err
+		}
+		sets = append(sets, set...)
 		r.Exprs = append(r.Exprs, e...)
 	}
 	if rule.L3 != nil && !skipL3 {
@@ -548,6 +556,20 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 	}
 }
 
+// IntfSpec lists possible flavours if specifying interface
+// // TODO(adphi): implement SetRef
+type IntfSpec struct {
+	Name string
+	RelOp Operator
+}
+
+func (intf IntfSpec) Validate() error {
+	if intf.Name == "" {
+		return errors.New("interface name cannot be empty")
+	}
+	return nil
+}
+
 // IPAddr defines a type of ip address, if it is host address with mask of 32 for ipv4 and mask of 128 for ipv6
 // then CIDR should be false, if it is a network address, then CIDR should be true and Mask set to a number of bits
 // in the address' mask. Mask value is from 0 to 32 for ipv4 and from 0 to 128 for ipv6 addresses.
@@ -656,6 +678,26 @@ func (ip *IPAddrSpec) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// L2Rule contains parameters for L2 based rule
+type L2Rule struct {
+	IIf   *IntfSpec
+	OIf   *IntfSpec
+}
+
+func (l2 *L2Rule) Validate() error {
+	switch {
+	case l2.IIf != nil:
+		if err := l2.IIf.Validate(); err != nil {
+			return err
+		}
+	case l2.OIf != nil:
+		if err := l2.OIf.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1177,6 +1219,7 @@ type Rule struct {
 	Dynamic    *Dynamic
 	MatchAct   *MatchAct
 	Fib        *Fib
+	L2         *L2Rule
 	L3         *L3Rule
 	L4         *L4Rule
 	Conntracks []*Conntrack
@@ -1199,6 +1242,10 @@ type Rule struct {
 // Validate checks parameters passed in struct and returns error if inconsistency is found
 func (r Rule) Validate() error {
 	switch {
+	case r.L2 != nil:
+		if err := r.L2.Validate(); err != nil {
+			return err
+		}
 	case r.L3 != nil:
 		if err := r.L3.Validate(); err != nil {
 			return err
