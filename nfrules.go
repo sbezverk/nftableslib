@@ -559,7 +559,7 @@ func newRules(conn NetNS, t *nftables.Table, c *nftables.Chain) RulesInterface {
 // IntfSpec lists possible flavours if specifying interface
 // // TODO(adphi): implement SetRef
 type IntfSpec struct {
-	Name string
+	Name  string
 	RelOp Operator
 }
 
@@ -683,8 +683,8 @@ func (ip *IPAddrSpec) Validate() error {
 
 // L2Rule contains parameters for L2 based rule
 type L2Rule struct {
-	IIf   *IntfSpec
-	OIf   *IntfSpec
+	IIf *IntfSpec
+	OIf *IntfSpec
 }
 
 func (l2 *L2Rule) Validate() error {

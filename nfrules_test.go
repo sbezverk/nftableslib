@@ -37,7 +37,6 @@ func setIPAddr(t *testing.T, addr string) *IPAddr {
 	return a
 }
 
-
 func TestRule(t *testing.T) {
 	//	ipv4Mask := uint8(24)
 	ipVersion := byte(4)
