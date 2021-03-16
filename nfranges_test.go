@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/google/nftables"
 )
 
 func TestGetMask(t *testing.T) {
@@ -253,5 +255,60 @@ func TestGetNetworks(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestTryMerge(t *testing.T) {
+	start1 := nftables.SetElement{Key: []byte("192.168.1.32")}
+	end1 := nftables.SetElement{Key: []byte("192.168.1.36"), IntervalEnd: true}
+	start2 := nftables.SetElement{Key: []byte("192.168.1.20")}
+	end2 := nftables.SetElement{Key: []byte("192.168.1.24"), IntervalEnd: true}
+	start3 := nftables.SetElement{Key: []byte("192.168.88.8")}
+	end3 := nftables.SetElement{Key: []byte("192.168.88.12"), IntervalEnd: true}
+	start4 := nftables.SetElement{Key: []byte("192.168.1.16")}
+	end4 := nftables.SetElement{Key: []byte("192.168.1.20"), IntervalEnd: true}
+	start5 := nftables.SetElement{Key: []byte("192.168.1.24")}
+	end5 := nftables.SetElement{Key: []byte("192.168.1.28"), IntervalEnd: true}
+	tests := []struct {
+		name string
+		list []nftables.SetElement
+		want []nftables.SetElement
+	}{
+		{
+			name: "no merge",
+			list: []nftables.SetElement{start1, end1, start3, end3,
+				start4, end4, start5, end5},
+			want: []nftables.SetElement{start1, end1, start3, end3,
+				start4, end4, start5, end5},
+		},
+		{
+			name: "2 entry merged",
+			list: []nftables.SetElement{start1, end1, start2, end2,
+				start3, end3, start4, end4},
+			want: []nftables.SetElement{start1, end1, start4, end2,
+				start3, end3},
+		},
+		{
+			name: "3 entry merged",
+			list: []nftables.SetElement{start1, end1, start2, end2,
+				start3, end3, start4, end4, start5, end5},
+			want: []nftables.SetElement{start1, end1, start4, end5,
+				start3, end3},
+		},
+	}
+	for _, tt := range tests {
+		got := tryMerge(tt.list)
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("Test \"%s\" failed, got ranges:", tt.name)
+			printRanges(got, t)
+			t.Errorf("expected:")
+			printRanges(tt.want, t)
+		}
+	}
+}
+
+func printRanges(ranges []nftables.SetElement, t *testing.T) {
+	for _, r := range ranges {
+		t.Errorf("(%s, IntervalEnd: %v), ", r.Key, r.IntervalEnd)
 	}
 }

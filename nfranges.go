@@ -1,6 +1,7 @@
 package nftableslib
 
 import (
+	"bytes"
 	"net"
 	"sort"
 
@@ -111,7 +112,7 @@ func buildElements(list []*IPAddr) []nftables.SetElement {
 		se = append(se, nftables.SetElement{Key: computeGapRange(list[i]), IntervalEnd: true})
 	}
 
-	return se
+	return tryMerge(se)
 }
 
 func computeGapRange(e1 *IPAddr) net.IP {
@@ -205,4 +206,31 @@ func addInverseMaskPlusOne(ip, mask []byte) []byte {
 	}
 
 	return r
+}
+
+// tryMerge tries to find adjacent address ranges and merge them.
+// This function expects that element with even index contains
+// start of the address interval and the element next to it contains
+// the end of the interval.
+func tryMerge(ranges []nftables.SetElement) []nftables.SetElement {
+	res := make([]nftables.SetElement, 0)
+	for i := 0; i < len(ranges); i += 2 {
+		merged := false
+		for j := 0; j < len(res); j += 2 {
+			if bytes.Equal(ranges[i].Key, res[j+1].Key) {
+				res[j+1] = ranges[i+1]
+				merged = true
+				continue
+			}
+			if bytes.Equal(ranges[i+1].Key, res[j].Key) {
+				res[j] = ranges[i]
+				merged = true
+				continue
+			}
+		}
+		if !merged {
+			res = append(res, ranges[i], ranges[i+1])
+		}
+	}
+	return res
 }
