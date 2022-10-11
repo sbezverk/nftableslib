@@ -33,8 +33,8 @@ const (
 // ChainAttributes defines attributes which can be apply to a chain of BASE type
 type ChainAttributes struct {
 	Type     nftables.ChainType
-	Hook     nftables.ChainHook
-	Priority nftables.ChainPriority
+	Hook     *nftables.ChainHook
+	Priority *nftables.ChainPriority
 	Device   string
 	Policy   *ChainPolicy
 }
@@ -248,7 +248,7 @@ func (nfc *nfChains) Sync() error {
 		if chain.Table.Name == nfc.table.Name && chain.Table.Family == nfc.table.Family {
 			if _, ok := nfc.chains[chain.Name]; !ok {
 				baseChain := false
-				if chain.Type != "" && chain.Hooknum != 0 {
+				if chain.Type != "" && chain.Hooknum != nftables.ChainHookPrerouting { // unix.NF_INET_PRE_ROUTING = 0
 					baseChain = true
 				}
 				nfc.Lock()
