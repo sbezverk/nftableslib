@@ -1,6 +1,6 @@
 module github.com/sbezverk/nftableslib
 
-go 1.12
+go 1.17
 
 require (
 	github.com/google/gopacket v1.1.17
