@@ -30,7 +30,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeFilter,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookInput,
 						Policy:   &accept,
 					},
@@ -86,7 +86,7 @@ func main() {
 					Name: "chain-2",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPrerouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -138,7 +138,7 @@ func main() {
 					Name: "chain-2",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPrerouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -163,7 +163,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPostrouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -192,7 +192,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPostrouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -219,7 +219,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPostrouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -248,7 +248,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeNAT,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookPostrouting,
 					},
 					Rules: []nftableslib.Rule{
@@ -275,7 +275,7 @@ func main() {
 					Name: "chain-1",
 					Attr: &nftableslib.ChainAttributes{
 						Type:     nftables.ChainTypeFilter,
-						Priority: 0,
+						Priority: nftables.ChainPriorityFirst,
 						Hook:     nftables.ChainHookInput,
 						Policy:   &accept,
 					},
