@@ -33,7 +33,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeFilter,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookInput,
 					Policy:   &accept,
 				},
@@ -86,7 +86,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-2",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPrerouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -135,7 +135,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-2",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPrerouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -157,7 +157,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPostrouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -182,7 +182,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPostrouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -206,7 +206,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPostrouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -231,7 +231,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeNAT,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookPostrouting,
 				},
 				Rules: []nftableslib.Rule{
@@ -255,7 +255,7 @@ var tests = []setenv.NFTablesTest{
 				Name: "chain-1",
 				Attr: &nftableslib.ChainAttributes{
 					Type:     nftables.ChainTypeFilter,
-					Priority: 0,
+					Priority: nftables.ChainPriorityFirst,
 					Hook:     nftables.ChainHookInput,
 					Policy:   &accept,
 				},
