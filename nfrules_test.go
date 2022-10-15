@@ -21,6 +21,13 @@ func setActionVerdict(t *testing.T, key int, chain ...string) *RuleAction {
 	}
 	return ra
 }
+func setActionMasq(t *testing.T) *RuleAction {
+	ra, err := SetMasq(false, false, false)
+	if err != nil {
+		t.Fatalf("failed to SetMasq with error: %+v", err)
+	}
+	return ra
+}
 
 func setIPAddr(t *testing.T, addr string) *IPAddr {
 	a, err := NewIPAddr(addr)
@@ -43,6 +50,16 @@ func TestRule(t *testing.T) {
 		{
 			name:    "Empty rule",
 			rule:    &Rule{},
+			success: true,
+		},
+		{
+			name: "Good L2",
+			rule: &Rule{
+				L2: &L2Rule{
+					OIf: &IntfSpec{Name: "eth0"},
+				},
+				Action: setActionMasq(t),
+			},
 			success: true,
 		},
 		{

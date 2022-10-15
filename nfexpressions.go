@@ -17,11 +17,34 @@ func ifname(n string) []byte {
 	return b
 }
 
-func inputIntfByName(intf string) []expr.Any {
+func getExprForInputIntfByName(intf string, op Operator) []expr.Any {
+	o := expr.CmpOpEq
+	if op == NEQ {
+		o = expr.CmpOpNeq
+	}
 	return []expr.Any{
 		&expr.Meta{Key: expr.MetaKeyIIFNAME, Register: 1},
 		&expr.Cmp{
-			Op:       expr.CmpOpEq,
+			Op:       o,
+			Register: 1,
+			Data:     ifname(intf),
+		},
+	}
+}
+
+func inputIntfByName(intf string) []expr.Any {
+	return getExprForInputIntfByName(intf, EQ)
+}
+
+func getExprForOutputIntfByName(intf string, op Operator) []expr.Any {
+	o := expr.CmpOpEq
+	if op == NEQ {
+		o = expr.CmpOpNeq
+	}
+	return []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyOIFNAME, Register: 1},
+		&expr.Cmp{
+			Op:       o,
 			Register: 1,
 			Data:     ifname(intf),
 		},
@@ -29,14 +52,7 @@ func inputIntfByName(intf string) []expr.Any {
 }
 
 func outputIntfByName(intf string) []expr.Any {
-	return []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyOIFNAME, Register: 1},
-		&expr.Cmp{
-			Op:       expr.CmpOpEq,
-			Register: 1,
-			Data:     ifname(intf),
-		},
-	}
+	return getExprForOutputIntfByName(intf, EQ)
 }
 
 // getExprForSingleIP returns expression to match a single IPv4 or IPv6 address
